@@ -87,9 +87,24 @@ print_status "Upgrading pip and installing build tools..."
 pip install --upgrade pip
 pip install --upgrade setuptools wheel build
 
-# Install requirements with verbose output for debugging
+# Install requirements with Python 3.12 compatibility fixes
 print_status "Installing project requirements..."
-pip install -r requirements.txt --verbose
+
+# Force use of wheels to avoid compilation issues
+export PIP_PREFER_BINARY=1
+export PIP_ONLY_BINARY=":all:"
+
+# Install numpy first with specific version for Python 3.12
+print_status "Installing numpy (Python 3.12 compatible version)..."
+pip install "numpy>=1.26.0" --only-binary=numpy
+
+# Install other requirements
+print_status "Installing remaining requirements..."
+pip install -r requirements.txt --prefer-binary --only-binary=:all: || {
+    print_warning "Binary installation failed, trying with source builds allowed for some packages..."
+    unset PIP_ONLY_BINARY
+    pip install -r requirements.txt --prefer-binary
+}
 
 # Detect available Ollama model
 print_status "Detecting available Ollama model..."
