@@ -24,11 +24,15 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Fix any problematic repositories first
+print_status "Fixing repository issues..."
+sudo rm -f /etc/apt/sources.list.d/certbot-*
+
 # Update system
 print_status "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
-# Install required packages
+# Install required packages (skip nginx if already installed)
 print_status "Installing system dependencies..."
 sudo apt install -y \
     curl \
@@ -37,10 +41,17 @@ sudo apt install -y \
     python3 \
     python3-pip \
     python3-venv \
-    nginx \
     htop \
     unzip \
     software-properties-common
+
+# Check if nginx is installed, install if needed
+if ! command -v nginx &> /dev/null; then
+    print_status "Installing nginx..."
+    sudo apt install -y nginx
+else
+    print_status "✅ Nginx is already installed"
+fi
 
 # Install Docker (for Ollama)
 print_status "Installing Docker..."

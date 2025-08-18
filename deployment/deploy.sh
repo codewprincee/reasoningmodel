@@ -37,14 +37,26 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Fix any problematic repositories
+print_status "Fixing repository issues..."
+sudo rm -f /etc/apt/sources.list.d/certbot-*
+
 # Update system packages
 print_status "Updating system packages..."
 sudo apt update
 sudo apt upgrade -y
 
-# Install required packages
+# Install required packages (skip nginx and certbot - already installed)
 print_status "Installing required packages..."
-sudo apt install -y python3 python3-pip python3-venv nginx git htop curl
+sudo apt install -y python3 python3-pip python3-venv git htop curl
+
+# Verify nginx is installed
+if ! command -v nginx &> /dev/null; then
+    print_error "Nginx is not installed. Please install it first: sudo apt install nginx"
+    exit 1
+else
+    print_status "✅ Nginx is already installed"
+fi
 
 # Create application directory
 print_status "Setting up application directory..."
@@ -133,18 +145,23 @@ sudo cp deployment/systemd.service /etc/systemd/system/$SERVICE_NAME.service
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 
-# Configure nginx
+# Configure nginx (backup existing config)
 print_status "Configuring nginx..."
-sudo cp deployment/nginx.conf /etc/nginx/sites-available/$APP_NAME
-sudo ln -sf /etc/nginx/sites-available/$APP_NAME /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-
-# Test nginx configuration
-sudo nginx -t
-if [ $? -ne 0 ]; then
-    print_error "Nginx configuration test failed"
-    exit 1
+if [ -f "/etc/nginx/sites-available/default" ]; then
+    print_status "Backing up existing nginx configuration..."
+    sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.backup.$(date +%Y%m%d_%H%M%S)
 fi
+
+print_warning "⚠️  Nginx configuration NOT automatically updated"
+print_warning "You already have nginx configured with SSL for aipdoll.hyperbrainlabs.com"
+print_warning "To update nginx configuration for API proxy:"
+print_warning "  1. Use the nginx config we provided earlier"
+print_warning "  2. Or manually update your existing config to proxy to port 8000"
+print_warning ""
+print_warning "Current nginx config preserved. API will be available on port 8000"
+
+# Skip nginx configuration test since we're not modifying it
+print_status "Skipping nginx configuration test (existing config preserved)"
 
 # Create directories for logs and data
 print_status "Creating necessary directories..."
@@ -211,16 +228,20 @@ echo "   • Restart Nginx: sudo systemctl restart nginx"
 echo "   • Check status: sudo systemctl status $SERVICE_NAME"
 echo ""
 echo "⚠️  Next Steps:"
-echo "   1. Test the API: curl http://$SERVER_IP/health"
-echo "   2. Update nginx.conf with your domain name if needed"
-echo "   3. Set up SSL certificate: sudo certbot --nginx -d your-domain.com"
-echo "   4. Configure your frontend to use: http://$SERVER_IP"
+echo "   1. Test the API directly: curl http://$SERVER_IP:8000/health"
+echo "   2. Update nginx configuration to proxy to the API:"
+echo "      sudo /tmp/update-nginx.sh (if you uploaded the nginx config)"
+echo "   3. Test through nginx: curl https://aipdoll.hyperbrainlabs.com/health"
+echo "   4. Configure your frontend to use: https://aipdoll.hyperbrainlabs.com"
 echo "   5. Verify Ollama model: ollama list"
 echo "   6. Test model: ollama run $OLLAMA_MODEL_NAME \"Hello, world!\""
 echo ""
 echo "🔧 Configuration Notes:"
 echo "   • Current Ollama model: $OLLAMA_MODEL_NAME"
 echo "   • Environment file: $BACKEND_DIR/.env"
+echo "   • API running on port 8000 (not proxied yet)"
+echo "   • Nginx config needs manual update for SSL proxy"
 echo "   • Update ALLOWED_ORIGINS in .env for production security"
 echo ""
-print_warning "If using a different model, update OLLAMA_MODEL in .env and restart the service!"
+print_warning "IMPORTANT: Update nginx configuration to proxy HTTPS requests to port 8000!"
+print_warning "Your API is currently only accessible on http://$SERVER_IP:8000"
