@@ -48,7 +48,7 @@ sudo apt upgrade -y
 
 # Install required packages (skip nginx and certbot - already installed)
 print_status "Installing required packages..."
-sudo apt install -y python3 python3-pip python3-venv git htop curl
+sudo apt install -y python3 python3-pip python3-venv python3-dev build-essential git htop curl
 
 # Verify nginx is installed
 if ! command -v nginx &> /dev/null; then
@@ -81,8 +81,15 @@ fi
 # Activate virtual environment and install dependencies
 print_status "Installing Python dependencies..."
 source $VENV_DIR/bin/activate
+
+# Upgrade pip and install essential build tools first
+print_status "Upgrading pip and installing build tools..."
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install --upgrade setuptools wheel build
+
+# Install requirements with verbose output for debugging
+print_status "Installing project requirements..."
+pip install -r requirements.txt --verbose
 
 # Detect available Ollama model
 print_status "Detecting available Ollama model..."
