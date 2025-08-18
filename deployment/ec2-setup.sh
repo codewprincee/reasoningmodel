@@ -1,8 +1,7 @@
-#!/bin/bash
+
 
 # EC2 Setup Script for AI Model Trainer with Ollama
-# Run this script on your EC2 instance to set up the environment
-
+# Run this script on your EC2 instance to set up the environm
 set -e
 
 echo "🚀 Setting up EC2 instance for AI Model Trainer with Ollama..."
@@ -94,7 +93,7 @@ sudo ufw --force enable
 
 # Create environment file template
 print_status "Creating environment configuration template..."
-cat > /home/ubuntu/ai-model/.env.template << EOF
+cat > /home/ubuntu/ai-model/.env.template << EOL
 # AI Model Trainer Configuration for Production
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=$MODEL_NAME
@@ -103,7 +102,7 @@ API_PORT=8000
 DATABASE_URL=sqlite:///./training_data.db
 SECRET_KEY=change-this-secret-key
 ENVIRONMENT=production
-EOF
+EOL
 
 # Check if NVIDIA GPU is available
 if command -v nvidia-smi &> /dev/null; then
@@ -170,3 +169,4 @@ echo "   • View Ollama logs: journalctl -u ollama -f"
 echo ""
 print_warning "Remember to update the OLLAMA_MODEL environment variable if you use a different model!"
 print_warning "Make sure to configure your security groups to allow HTTP traffic on port 80!"
+EOF

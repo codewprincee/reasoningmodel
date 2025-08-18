@@ -1,45 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  Chip,
-  LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  PlayArrow,
-  Stop,
-  Refresh,
-  ExpandMore,
-  Settings,
-} from '@mui/icons-material';
-import { useForm, Controller } from 'react-hook-form';
 import { useAppContext } from '../contexts/AppContext';
+import './Training.css';
 
 interface TrainingFormData {
   experimentName: string;
@@ -55,20 +16,17 @@ interface TrainingFormData {
 
 const Training: React.FC = () => {
   const { state, actions } = useAppContext();
-  const [openDialog, setOpenDialog] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const { control, handleSubmit, formState: { errors }, reset } = useForm<TrainingFormData>({
-    defaultValues: {
-      experimentName: '',
-      description: '',
-      datasetId: '',
-      epochs: 3,
-      batchSize: 4,
-      learningRate: 0.00005,
-      useLoRA: true,
-      loraR: 16,
-      loraAlpha: 32,
-    },
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState<TrainingFormData>({
+    experimentName: '',
+    description: '',
+    datasetId: '',
+    epochs: 3,
+    batchSize: 4,
+    learningRate: 0.00005,
+    useLoRA: true,
+    loraR: 16,
+    loraAlpha: 32,
   });
 
   useEffect(() => {
@@ -76,61 +34,81 @@ const Training: React.FC = () => {
     actions.loadDatasets();
   }, [actions]);
 
-  const handleStartTraining = async (data: TrainingFormData) => {
+  const handleStartTraining = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.datasetId) {
+      alert('Please select a dataset');
+      return;
+    }
+
     try {
-      const selectedDataset = state.datasets.find(d => d.dataset_id === data.datasetId);
+      const selectedDataset = state.datasets.find(d => d.dataset_id === formData.datasetId);
       if (!selectedDataset) {
-        alert('Please select a dataset');
+        alert('Selected dataset not found');
         return;
       }
 
       const trainingData = {
-        experiment_name: data.experimentName,
-        description: data.description,
-        training_data: [], // This would be loaded from the selected dataset
+        experiment_name: formData.experimentName,
+        description: formData.description,
+        training_data: [],
         model_config: {
           model_name: 'gpt-oss-20b',
           max_length: 2048,
           temperature: 0.7,
-          learning_rate: data.learningRate,
+          learning_rate: formData.learningRate,
         },
         training_config: {
-          epochs: data.epochs,
-          batch_size: data.batchSize,
-          use_lora: data.useLoRA,
-          lora_r: data.loraR,
-          lora_alpha: data.loraAlpha,
+          epochs: formData.epochs,
+          batch_size: formData.batchSize,
+          use_lora: formData.useLoRA,
+          lora_r: formData.loraR,
+          lora_alpha: formData.loraAlpha,
         },
       };
 
       await actions.startTraining(trainingData);
-      setOpenDialog(false);
-      reset();
+      setShowForm(false);
+      setFormData({
+        experimentName: '',
+        description: '',
+        datasetId: '',
+        epochs: 3,
+        batchSize: 4,
+        learningRate: 0.00005,
+        useLoRA: true,
+        loraR: 16,
+        loraAlpha: 32,
+      });
     } catch (error) {
       console.error('Failed to start training:', error);
+      alert('Failed to start training. Please try again.');
     }
   };
 
   const handleStopTraining = async (trainingId: string) => {
-    try {
-      await actions.stopTraining(trainingId);
-    } catch (error) {
-      console.error('Failed to stop training:', error);
+    if (window.confirm('Are you sure you want to stop this training?')) {
+      try {
+        await actions.stopTraining(trainingId);
+      } catch (error) {
+        console.error('Failed to stop training:', error);
+      }
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'running':
-        return 'success';
+        return 'status-success';
       case 'completed':
-        return 'info';
+        return 'status-info';
       case 'failed':
-        return 'error';
+        return 'status-error';
       case 'stopped':
-        return 'warning';
+        return 'status-warning';
       default:
-        return 'default';
+        return 'status-default';
     }
   };
 
@@ -146,341 +124,272 @@ const Training: React.FC = () => {
     return `${hours}h ${minutes}m ${seconds}s`;
   };
 
+  const activeJobs = state.trainingJobs.filter(job => job.status === 'running' || job.status === 'pending');
+
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Training Management
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setOpenDialog(true)}
+    <div className="training">
+      <div className="training-header">
+        <h1>Training Management</h1>
+        <button 
+          className="btn btn-primary"
+          onClick={() => setShowForm(true)}
           disabled={state.datasets.length === 0}
         >
-          Start New Training
-        </Button>
-      </Box>
+          ➕ Start New Training
+        </button>
+      </div>
 
       {state.datasets.length === 0 && (
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          No datasets available. Please upload a dataset first in the Data Management section.
-        </Alert>
+        <div className="warning-message">
+          ⚠️ No datasets available. Please upload a dataset first in the Data Management section.
+        </div>
       )}
 
       {/* Active Training Jobs */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Active Training Jobs
-            </Typography>
-            <IconButton onClick={() => actions.loadTrainingJobs()}>
-              <Refresh />
-            </IconButton>
-          </Box>
+      <div className="training-section">
+        <div className="section-header">
+          <h2>🚀 Active Training Jobs</h2>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => actions.loadTrainingJobs()}
+          >
+            🔄 Refresh
+          </button>
+        </div>
 
-          {state.trainingJobs.filter(job => job.status === 'running' || job.status === 'pending').length > 0 ? (
-            <Grid container spacing={2}>
-              {state.trainingJobs
-                .filter(job => job.status === 'running' || job.status === 'pending')
-                .map((job) => (
-                  <Grid item xs={12} md={6} key={job.training_id}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                          <Typography variant="subtitle1">
-                            Training {job.training_id.substring(0, 8)}...
-                          </Typography>
-                          <Chip
-                            label={job.status}
-                            color={getStatusColor(job.status) as any}
-                            size="small"
-                          />
-                        </Box>
-                        
-                        {job.progress > 0 && (
-                          <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="body2">Progress</Typography>
-                              <Typography variant="body2">{job.progress.toFixed(1)}%</Typography>
-                            </Box>
-                            <LinearProgress variant="determinate" value={job.progress} />
-                          </Box>
-                        )}
+        {activeJobs.length > 0 ? (
+          <div className="jobs-grid">
+            {activeJobs.map((job) => (
+              <div key={job.training_id} className="job-card active-job">
+                <div className="job-header">
+                  <h3>Training {job.training_id.substring(0, 8)}...</h3>
+                  <span className={`status-badge ${getStatusColor(job.status)}`}>
+                    {job.status}
+                  </span>
+                </div>
+                
+                {job.progress > 0 && (
+                  <div className="progress-section">
+                    <div className="progress-info">
+                      <span>Progress</span>
+                      <span>{job.progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${job.progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
 
-                        {job.current_epoch && job.total_epochs && (
-                          <Typography variant="body2" color="textSecondary">
-                            Epoch {job.current_epoch} of {job.total_epochs}
-                          </Typography>
-                        )}
+                <div className="job-details">
+                  {job.current_epoch && job.total_epochs && (
+                    <div className="detail-item">
+                      <span>Epoch:</span>
+                      <span>{job.current_epoch} of {job.total_epochs}</span>
+                    </div>
+                  )}
+                  {job.loss && (
+                    <div className="detail-item">
+                      <span>Loss:</span>
+                      <span>{job.loss.toFixed(4)}</span>
+                    </div>
+                  )}
+                </div>
 
-                        {job.loss && (
-                          <Typography variant="body2" color="textSecondary">
-                            Loss: {job.loss.toFixed(4)}
-                          </Typography>
-                        )}
-
-                        <Box sx={{ mt: 2 }}>
-                          <Button
-                            size="small"
-                            color="error"
-                            startIcon={<Stop />}
-                            onClick={() => handleStopTraining(job.training_id)}
-                            disabled={job.status !== 'running'}
-                          >
-                            Stop Training
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-            </Grid>
-          ) : (
-            <Typography variant="body2" color="textSecondary">
-              No active training jobs
-            </Typography>
-          )}
-        </CardContent>
-      </Card>
+                <div className="job-actions">
+                  <button
+                    className="btn btn-danger btn-small"
+                    onClick={() => handleStopTraining(job.training_id)}
+                    disabled={job.status !== 'running'}
+                  >
+                    ⏹️ Stop Training
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">⏸️</div>
+            <h3>No active training jobs</h3>
+            <p>Start a new training to see progress here</p>
+          </div>
+        )}
+      </div>
 
       {/* Training History */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Training History
-          </Typography>
-          
-          {state.trainingJobs.length > 0 ? (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Training ID</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Progress</TableCell>
-                    <TableCell>Duration</TableCell>
-                    <TableCell>Final Loss</TableCell>
-                    <TableCell>Created</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {state.trainingJobs.map((job) => (
-                    <TableRow key={job.training_id}>
-                      <TableCell>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {job.training_id.substring(0, 8)}...
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={job.status}
-                          color={getStatusColor(job.status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <LinearProgress
-                            variant="determinate"
-                            value={job.progress}
-                            sx={{ width: 100 }}
-                          />
-                          <Typography variant="body2">
-                            {job.progress.toFixed(1)}%
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        {formatDuration(job.created_at, job.updated_at)}
-                      </TableCell>
-                      <TableCell>
-                        {job.loss ? job.loss.toFixed(4) : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(job.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Typography variant="body2" color="textSecondary">
-              No training history available
-            </Typography>
-          )}
-        </CardContent>
-      </Card>
+      <div className="training-section">
+        <h2>📊 Training History</h2>
+        
+        {state.trainingJobs.length > 0 ? (
+          <div className="history-table">
+            <div className="table-header">
+              <div>Training ID</div>
+              <div>Status</div>
+              <div>Progress</div>
+              <div>Duration</div>
+              <div>Final Loss</div>
+              <div>Created</div>
+            </div>
+            <div className="table-body">
+              {state.trainingJobs.map((job) => (
+                <div key={job.training_id} className="table-row">
+                  <div className="job-id">{job.training_id.substring(0, 8)}...</div>
+                  <div>
+                    <span className={`status-badge ${getStatusColor(job.status)}`}>
+                      {job.status}
+                    </span>
+                  </div>
+                  <div className="progress-cell">
+                    <div className="mini-progress-bar">
+                      <div 
+                        className="mini-progress-fill" 
+                        style={{ width: `${job.progress}%` }}
+                      ></div>
+                    </div>
+                    <span>{job.progress.toFixed(1)}%</span>
+                  </div>
+                  <div>{formatDuration(job.created_at, job.updated_at)}</div>
+                  <div>{job.loss ? job.loss.toFixed(4) : 'N/A'}</div>
+                  <div>{new Date(job.created_at).toLocaleDateString()}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">📈</div>
+            <h3>No training history</h3>
+            <p>Your completed training jobs will appear here</p>
+          </div>
+        )}
+      </div>
 
-      {/* Start Training Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <form onSubmit={handleSubmit(handleStartTraining)}>
-          <DialogTitle>Start New Training</DialogTitle>
-          <DialogContent>
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
-                <Controller
-                  name="experimentName"
-                  control={control}
-                  rules={{ required: 'Experiment name is required' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Experiment Name"
-                      error={!!errors.experimentName}
-                      helperText={errors.experimentName?.message}
-                    />
-                  )}
-                />
-              </Grid>
+      {/* Training Form Modal */}
+      {showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleStartTraining}>
+              <div className="modal-header">
+                <h2>Start New Training</h2>
+                <button 
+                  type="button" 
+                  className="close-btn"
+                  onClick={() => setShowForm(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="form-content">
+                <div className="form-group">
+                  <label>Experiment Name *</label>
+                  <input
+                    type="text"
+                    value={formData.experimentName}
+                    onChange={(e) => setFormData({...formData, experimentName: e.target.value})}
+                    required
+                  />
+                </div>
 
-              <Grid item xs={12}>
-                <Controller
-                  name="description"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Description"
-                      multiline
-                      rows={3}
-                    />
-                  )}
-                />
-              </Grid>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    rows={3}
+                  />
+                </div>
 
-              <Grid item xs={12}>
-                <Controller
-                  name="datasetId"
-                  control={control}
-                  rules={{ required: 'Dataset selection is required' }}
-                  render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.datasetId}>
-                      <InputLabel>Dataset</InputLabel>
-                      <Select {...field} label="Dataset">
-                        {state.datasets.map((dataset) => (
-                          <MenuItem key={dataset.dataset_id} value={dataset.dataset_id}>
-                            {dataset.name} ({dataset.size} examples)
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Grid>
+                <div className="form-group">
+                  <label>Dataset *</label>
+                  <select
+                    value={formData.datasetId}
+                    onChange={(e) => setFormData({...formData, datasetId: e.target.value})}
+                    required
+                  >
+                    <option value="">Select a dataset</option>
+                    {state.datasets.map((dataset) => (
+                      <option key={dataset.dataset_id} value={dataset.dataset_id}>
+                        {dataset.name} ({dataset.size} examples)
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Basic Training Parameters */}
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="epochs"
-                  control={control}
-                  rules={{ required: 'Epochs is required', min: 1, max: 20 }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Epochs"
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Epochs</label>
+                    <input
                       type="number"
-                      error={!!errors.epochs}
-                      helperText={errors.epochs?.message}
+                      min="1"
+                      max="20"
+                      value={formData.epochs}
+                      onChange={(e) => setFormData({...formData, epochs: parseInt(e.target.value)})}
                     />
-                  )}
-                />
-              </Grid>
+                  </div>
 
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="batchSize"
-                  control={control}
-                  rules={{ required: 'Batch size is required', min: 1 }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Batch Size"
+                  <div className="form-group">
+                    <label>Batch Size</label>
+                    <input
                       type="number"
-                      error={!!errors.batchSize}
-                      helperText={errors.batchSize?.message}
+                      min="1"
+                      value={formData.batchSize}
+                      onChange={(e) => setFormData({...formData, batchSize: parseInt(e.target.value)})}
                     />
-                  )}
-                />
-              </Grid>
+                  </div>
+                </div>
 
-              {/* Advanced Settings */}
-              <Grid item xs={12}>
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Settings sx={{ mr: 1 }} />
-                      <Typography>Advanced Settings</Typography>
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} sm={6}>
-                        <Controller
-                          name="learningRate"
-                          control={control}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              fullWidth
-                              label="Learning Rate"
-                              type="number"
-                              step="0.00001"
-                            />
-                          )}
-                        />
-                      </Grid>
+                <div className="advanced-section">
+                  <h3>🔧 Advanced Settings</h3>
+                  
+                  <div className="form-group">
+                    <label>Learning Rate</label>
+                    <input
+                      type="number"
+                      step="0.00001"
+                      value={formData.learningRate}
+                      onChange={(e) => setFormData({...formData, learningRate: parseFloat(e.target.value)})}
+                    />
+                  </div>
 
-                      <Grid item xs={12} sm={6}>
-                        <Controller
-                          name="loraR"
-                          control={control}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              fullWidth
-                              label="LoRA R"
-                              type="number"
-                            />
-                          )}
-                        />
-                      </Grid>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>LoRA R</label>
+                      <input
+                        type="number"
+                        value={formData.loraR}
+                        onChange={(e) => setFormData({...formData, loraR: parseInt(e.target.value)})}
+                      />
+                    </div>
 
-                      <Grid item xs={12} sm={6}>
-                        <Controller
-                          name="loraAlpha"
-                          control={control}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              fullWidth
-                              label="LoRA Alpha"
-                              type="number"
-                            />
-                          )}
-                        />
-                      </Grid>
-                    </Grid>
-                  </AccordionDetails>
-                </Accordion>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button type="submit" variant="contained" startIcon={<PlayArrow />}>
-              Start Training
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-    </Box>
+                    <div className="form-group">
+                      <label>LoRA Alpha</label>
+                      <input
+                        type="number"
+                        value={formData.loraAlpha}
+                        onChange={(e) => setFormData({...formData, loraAlpha: parseInt(e.target.value)})}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  ▶️ Start Training
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
