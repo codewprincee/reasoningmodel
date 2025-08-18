@@ -1,136 +1,71 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Chip,
-  Alert,
-  Grid,
-  LinearProgress,
-  Tooltip,
-} from '@mui/material';
-import {
-  Upload as UploadIcon,
-  Delete as DeleteIcon,
-  Visibility as ViewIcon,
-  CloudUpload,
-  InsertDriveFile,
-  DataObject,
-} from '@mui/icons-material';
-import { useForm, Controller } from 'react-hook-form';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-
-interface UploadFormData {
-  name: string;
-  description: string;
-}
+import './DataManagement.css';
 
 const DataManagement: React.FC = () => {
   const { state, actions } = useAppContext();
-  const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  const [openViewDialog, setOpenViewDialog] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState<any>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const { control, handleSubmit, formState: { errors }, reset } = useForm<UploadFormData>({
-    defaultValues: {
-      name: '',
-      description: '',
-    },
-  });
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
     actions.loadDatasets();
   }, [actions]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      // Auto-fill name with filename (without extension)
-      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-      reset({ name: nameWithoutExt, description: '' });
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
     }
   };
 
-  const handleUpload = async (data: UploadFormData) => {
-    if (!selectedFile) {
-      alert('Please select a file to upload');
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!file.name.endsWith('.jsonl') && !file.name.endsWith('.json') && !file.name.endsWith('.txt')) {
+      setUploadError('Please upload a .jsonl, .json, or .txt file');
       return;
     }
 
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadError(null);
 
     try {
-      // Simulate upload progress (in real app, this would come from the upload request)
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      await actions.uploadDataset(selectedFile, data.name, data.description);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      setTimeout(() => {
-        setOpenUploadDialog(false);
-        setSelectedFile(null);
-        setUploadProgress(0);
-        reset();
-      }, 500);
-
+      const name = file.name.replace(/\.[^/.]+$/, ""); // Remove file extension
+      await actions.uploadDataset(file, name, `Uploaded on ${new Date().toLocaleDateString()}`);
     } catch (error) {
-      console.error('Upload failed:', error);
+      setUploadError('Failed to upload dataset. Please try again.');
+      console.error('Upload error:', error);
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDelete = async (datasetId: string) => {
+  const handleDeleteDataset = async (datasetId: string) => {
     if (window.confirm('Are you sure you want to delete this dataset?')) {
       try {
         await actions.deleteDataset(datasetId);
       } catch (error) {
-        console.error('Delete failed:', error);
+        console.error('Delete error:', error);
       }
     }
-  };
-
-  const handleView = async (datasetId: string) => {
-    // In a real app, you'd load the dataset details
-    setSelectedDataset({ 
-      dataset_id: datasetId,
-      sample_data: [
-        { input_prompt: "Solve this math problem", enhanced_prompt: "Let's think step by step about this math problem..." },
-        { input_prompt: "Write a story", enhanced_prompt: "To write an engaging story, let's consider the key elements..." }
-      ]
-    });
-    setOpenViewDialog(true);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -141,315 +76,158 @@ const DataManagement: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFormatIcon = (format: string) => {
-    switch (format) {
-      case 'json':
-      case 'jsonl':
-        return <DataObject color="primary" />;
-      case 'csv':
-      case 'tsv':
-        return <InsertDriveFile color="success" />;
-      default:
-        return <InsertDriveFile color="action" />;
-    }
-  };
-
-  const getFormatColor = (format: string) => {
-    switch (format) {
-      case 'json':
-      case 'jsonl':
-        return 'primary';
-      case 'csv':
-      case 'tsv':
-        return 'success';
-      default:
-        return 'default';
-    }
-  };
-
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Data Management
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<UploadIcon />}
-          onClick={() => setOpenUploadDialog(true)}
+    <div className="data-management">
+      <div className="data-header">
+        <h1>Data Management</h1>
+        <p className="subtitle">
+          Upload and manage your training datasets
+        </p>
+      </div>
+
+      {/* Upload Section */}
+      <div className="upload-section">
+        <h2>📤 Upload Dataset</h2>
+        <div 
+          className={`upload-area ${dragActive ? 'drag-active' : ''}`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
         >
-          Upload Dataset
-        </Button>
-      </Box>
-
-      <Typography variant="body1" color="textSecondary" paragraph>
-        Manage your training datasets. Upload JSON, JSONL, or CSV files containing prompt-enhancement pairs.
-      </Typography>
-
-      {/* Datasets Overview */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" color="primary">
-                {state.datasets.length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Datasets
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" color="primary">
-                {state.datasets.reduce((sum, d) => sum + d.size, 0).toLocaleString()}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Examples
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" color="primary">
-                {formatFileSize(state.datasets.reduce((sum, d) => sum + d.file_size, 0))}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Size
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Datasets Table */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Uploaded Datasets
-          </Typography>
-          
-          {state.datasets.length > 0 ? (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Format</TableCell>
-                    <TableCell>Examples</TableCell>
-                    <TableCell>File Size</TableCell>
-                    <TableCell>Uploaded</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {state.datasets.map((dataset) => (
-                    <TableRow key={dataset.dataset_id}>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {getFormatIcon(dataset.format)}
-                          <Box>
-                            <Typography variant="body2" fontWeight="medium">
-                              {dataset.name}
-                            </Typography>
-                            {dataset.description && (
-                              <Typography variant="caption" color="textSecondary">
-                                {dataset.description}
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={dataset.format.toUpperCase()}
-                          color={getFormatColor(dataset.format) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {dataset.size.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {formatFileSize(dataset.file_size)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {new Date(dataset.created_at).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="View Dataset">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleView(dataset.dataset_id)}
-                            >
-                              <ViewIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete Dataset">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDelete(dataset.dataset_id)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Alert severity="info">
-              No datasets uploaded yet. Upload your first dataset to get started with training.
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Upload Dialog */}
-      <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)} maxWidth="sm" fullWidth>
-        <form onSubmit={handleSubmit(handleUpload)}>
-          <DialogTitle>Upload Dataset</DialogTitle>
-          <DialogContent>
-            <Box sx={{ mt: 2 }}>
+          <div className="upload-content">
+            <div className="upload-icon">📁</div>
+            <h3>Drag & drop your dataset file here</h3>
+            <p>or</p>
+            <label className="upload-button">
               <input
                 type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                accept=".json,.jsonl,.csv,.txt,.tsv"
+                accept=".jsonl,.json,.txt"
+                onChange={handleFileInput}
                 style={{ display: 'none' }}
               />
-              
-              <Button
-                variant="outlined"
-                startIcon={<CloudUpload />}
-                onClick={() => fileInputRef.current?.click()}
-                fullWidth
-                sx={{ mb: 3, py: 2 }}
-              >
-                {selectedFile ? selectedFile.name : 'Choose File'}
-              </Button>
+              Choose File
+            </label>
+            <p className="upload-hint">
+              Supported formats: .jsonl, .json, .txt
+            </p>
+          </div>
+        </div>
 
-              {selectedFile && (
-                <Alert severity="success" sx={{ mb: 3 }}>
-                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-                </Alert>
-              )}
+        {isUploading && (
+          <div className="upload-status">
+            <div className="loading">⏳ Uploading dataset...</div>
+          </div>
+        )}
 
-              <Controller
-                name="name"
-                control={control}
-                rules={{ required: 'Dataset name is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Dataset Name"
-                    margin="normal"
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                  />
+        {uploadError && (
+          <div className="error-message">
+            {uploadError}
+          </div>
+        )}
+      </div>
+
+      {/* Datasets List */}
+      <div className="datasets-section">
+        <div className="section-header">
+          <h2>📊 Your Datasets</h2>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => actions.loadDatasets()}
+            disabled={state.isLoading}
+          >
+            🔄 Refresh
+          </button>
+        </div>
+
+        {state.datasets.length > 0 ? (
+          <div className="datasets-grid">
+            {state.datasets.map((dataset) => (
+              <div key={dataset.dataset_id} className="dataset-card">
+                <div className="dataset-header">
+                  <h3>{dataset.name}</h3>
+                  <button 
+                    className="btn btn-danger btn-small"
+                    onClick={() => handleDeleteDataset(dataset.dataset_id)}
+                  >
+                    🗑️
+                  </button>
+                </div>
+                
+                <div className="dataset-info">
+                  <div className="info-item">
+                    <span className="label">Format:</span>
+                    <span className="value">{dataset.format}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="label">Examples:</span>
+                    <span className="value">{dataset.size.toLocaleString()}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="label">File Size:</span>
+                    <span className="value">{formatFileSize(dataset.file_size)}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="label">Uploaded:</span>
+                    <span className="value">
+                      {new Date(dataset.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {dataset.description && (
+                  <div className="dataset-description">
+                    <p>{dataset.description}</p>
+                  </div>
                 )}
-              />
 
-              <Controller
-                name="description"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Description (optional)"
-                    margin="normal"
-                    multiline
-                    rows={3}
-                  />
-                )}
-              />
+                <div className="dataset-filename">
+                  <span className="filename">{dataset.filename}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">📂</div>
+            <h3>No datasets yet</h3>
+            <p>Upload your first dataset to get started with training!</p>
+          </div>
+        )}
+      </div>
 
-              {isUploading && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="body2" gutterBottom>
-                    Uploading... {uploadProgress}%
-                  </Typography>
-                  <LinearProgress variant="determinate" value={uploadProgress} />
-                </Box>
-              )}
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenUploadDialog(false)} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              variant="contained" 
-              disabled={!selectedFile || isUploading}
-            >
-              Upload
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-
-      {/* View Dataset Dialog */}
-      <Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Dataset Preview</DialogTitle>
-        <DialogContent>
-          {selectedDataset && (
-            <Box>
-              <Typography variant="body2" color="textSecondary" paragraph>
-                Showing sample data from the dataset:
-              </Typography>
-              
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Input Prompt</TableCell>
-                      <TableCell>Enhanced Prompt</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedDataset.sample_data.map((item: any, index: number) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {item.input_prompt}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {item.enhanced_prompt}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenViewDialog(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+      {/* Dataset Guidelines */}
+      <div className="guidelines-section">
+        <h2>📋 Dataset Guidelines</h2>
+        <div className="guidelines-grid">
+          <div className="guideline-card">
+            <h4>📄 JSONL Format</h4>
+            <p>Each line should be a valid JSON object with 'prompt' and 'completion' fields:</p>
+            <code>{"{"}"prompt": "What is AI?", "completion": "AI is artificial intelligence..."{"}"}</code>
+          </div>
+          
+          <div className="guideline-card">
+            <h4>📊 Quality Tips</h4>
+            <ul>
+              <li>Use diverse and representative examples</li>
+              <li>Ensure high-quality, accurate responses</li>
+              <li>Keep consistent formatting</li>
+              <li>Aim for 100+ examples for best results</li>
+            </ul>
+          </div>
+          
+          <div className="guideline-card">
+            <h4>⚡ Performance</h4>
+            <ul>
+              <li>File size limit: 50MB</li>
+              <li>Recommended: 500-10,000 examples</li>
+              <li>Larger datasets = better model performance</li>
+              <li>Balance quality over quantity</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

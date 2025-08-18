@@ -1,67 +1,108 @@
 # AI Model Trainer - GPT OSS 20B Reasoning Prompt Enhancer
 
-A comprehensive web application for training and using a reasoning prompt enhancer based on the GPT OSS 20B model deployed on AWS EC2.
+A comprehensive web application for training and using a reasoning prompt enhancer based on the GPT OSS 20B model deployed on AWS EC2 with Ollama.
 
 ## Overview
 
 This project provides a complete solution for:
-- Connecting to your EC2 g4 instance with GPT OSS 20B model
-- Training the model for reasoning prompt enhancement
+- Connecting to your EC2 g4 instance with GPT OSS 20B model via Ollama
+- Training and fine-tuning models for reasoning prompt enhancement  
 - Managing training datasets
-- Real-time monitoring of training progress
-- Using the trained model to enhance prompts
+- Real-time monitoring of system metrics
+- Using AI models to enhance prompts with better reasoning
 
 ## Architecture
 
-- **Backend**: FastAPI with async support
-- **Frontend**: React with TypeScript and Material-UI
-- **Model**: GPT OSS 20B running on EC2 g4 instance
-- **Training**: LoRA fine-tuning for efficient adaptation
-- **Connection**: SSH-based communication with EC2
+- **Backend**: FastAPI with async support and Ollama integration
+- **Frontend**: React with TypeScript and custom components
+- **Model**: GPT OSS 20B running via Ollama on EC2 g4 instance
+- **Deployment**: Nginx reverse proxy with systemd service management
+- **Communication**: HTTP API calls to Ollama service
 
 ## Prerequisites
 
 1. **EC2 Instance**: 
    - g4 instance type (recommended: g4dn.xlarge or larger)
-   - GPT OSS 20B model installed and configured
-   - SSH access configured
+   - Ubuntu 20.04 or later
+   - GPT OSS 20B model available via Ollama
+   - HTTP access configured (ports 80, 443)
 
-2. **Local Environment**:
+2. **Local Development**:
    - Python 3.8+
    - Node.js 16+
    - npm or yarn
 
-## Quick Start
+3. **Domain/SSL** (Optional but recommended):
+   - Domain name pointing to your EC2 instance
+   - SSL certificate for HTTPS
 
-### 1. Clone and Install Dependencies
+## Quick Deployment (Production)
+
+### Option A: Automated Deployment
 
 ```bash
-# Install Python dependencies
+# Run the automated deployment script
+./deployment/quick-deploy.sh
+```
+
+This will:
+1. Set up your EC2 instance with Ollama
+2. Deploy the backend with nginx
+3. Configure SSL (if domain provided)
+4. Test the deployment
+
+### Option B: Manual Deployment
+
+#### 1. Set up EC2 Instance
+
+```bash
+# SSH to your EC2 instance
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+# Run the setup script
+curl -fsSL https://raw.githubusercontent.com/your-repo/ai-model/main/deployment/ec2-setup.sh | bash
+```
+
+#### 2. Deploy Application
+
+```bash
+# Upload your code to EC2
+scp -r . ubuntu@your-ec2-ip:/home/ubuntu/ai-model/
+
+# SSH to EC2 and deploy
+ssh -i your-key.pem ubuntu@your-ec2-ip
+cd /home/ubuntu/ai-model
+./deployment/deploy.sh
+```
+
+#### 3. Access Your Application
+
+- Backend API: `http://your-ec2-ip` or `https://your-domain.com`
+- API Documentation: `http://your-ec2-ip/docs`
+- Health Check: `http://your-ec2-ip/health`
+
+## Local Development
+
+### 1. Install Dependencies
+
+```bash
+# Backend dependencies
 pip install -r requirements.txt
 
-# Install Node.js dependencies for frontend
+# Frontend dependencies
 cd frontend && npm install
-
-# Install concurrently for running both services
-npm install -g concurrently
 ```
 
 ### 2. Configure Environment
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the backend directory:
 
 ```env
-# EC2 Configuration
-EC2_HOST=your-ec2-instance-ip
-EC2_USER=ubuntu
-EC2_KEY_PATH=/path/to/your/private-key.pem
-EC2_REGION=us-east-1
+# Ollama Configuration
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=gpt-oss-20b
 
-# Model Configuration
-MODEL_NAME=gpt-oss-20b
-MODEL_PATH=/path/to/model/on/ec2
-
-# API Configuration
+# API Configuration  
 API_HOST=localhost
 API_PORT=8000
 FRONTEND_URL=http://localhost:3000
@@ -70,15 +111,11 @@ FRONTEND_URL=http://localhost:3000
 DATABASE_URL=sqlite:///./training_data.db
 ```
 
-### 3. Start the Application
+### 3. Start Development
 
 ```bash
 # Start both backend and frontend
 npm run dev
-
-# Or start them separately:
-# Backend: npm run dev:backend
-# Frontend: npm run dev:frontend
 ```
 
 The application will be available at:
@@ -187,26 +224,30 @@ The application will be available at:
 - `GET /model/versions` - List model versions
 - `GET /health` - Health check and EC2 status
 
-## EC2 Setup
+## Production Configuration
 
-### Model Installation
+### Ollama Setup
 
-Your EC2 instance should have:
+Your EC2 instance will be configured with:
 
-1. **GPU drivers and CUDA** properly installed
-2. **Python environment** with required packages:
-   ```bash
-   pip install torch transformers accelerate peft bitsandbytes
-   ```
+1. **Ollama service** running on port 11434
+2. **GPU support** (if g4 instance with NVIDIA GPU)
+3. **GPT OSS 20B model** pulled and ready
+4. **Systemd service** for automatic startup
 
-3. **GPT OSS 20B model** downloaded and configured
-4. **SSH access** enabled for the training scripts
+### Nginx Configuration
+
+- **Reverse proxy** handling HTTP/HTTPS traffic
+- **CORS headers** properly configured
+- **SSL termination** (if certificate provided)
+- **Static file serving** for any frontend assets
 
 ### Security Configuration
 
-- Ensure your EC2 security group allows SSH (port 22) from your IP
-- Keep your private key secure and properly configured
-- Consider using IAM roles for AWS API access
+- **Firewall rules**: Only necessary ports open (22, 80, 443)
+- **Ollama API**: Only accessible locally (localhost:11434)
+- **SSL/TLS**: Automatic certificate management with Certbot
+- **Service isolation**: Systemd service with security restrictions
 
 ## Troubleshooting
 

@@ -1,42 +1,13 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  TextField,
-  Button,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Paper,
-  Divider,
-  Chip,
-  Alert,
-  CircularProgress,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import {
-  AutoFixHigh,
-  ContentCopy,
-  Clear,
-  Psychology,
-  Analytics,
-  Lightbulb,
-  Assignment,
-  Build,
-} from '@mui/icons-material';
 import { useAppContext } from '../contexts/AppContext';
+import './PromptEnhancer.css';
 
 const enhancementTypes = [
-  { value: 'reasoning', label: 'Reasoning', icon: <Psychology />, description: 'Step-by-step logical thinking' },
-  { value: 'logic', label: 'Logic', icon: <Analytics />, description: 'Analytical and structured approach' },
-  { value: 'creativity', label: 'Creativity', icon: <Lightbulb />, description: 'Creative and diverse perspectives' },
-  { value: 'analysis', label: 'Analysis', icon: <Assignment />, description: 'Systematic breakdown and analysis' },
-  { value: 'problem_solving', label: 'Problem Solving', icon: <Build />, description: 'Structured problem resolution' },
+  { value: 'reasoning', label: 'Reasoning', icon: '🧠', description: 'Step-by-step logical thinking' },
+  { value: 'logic', label: 'Logic', icon: '📊', description: 'Analytical and structured approach' },
+  { value: 'creativity', label: 'Creativity', icon: '💡', description: 'Creative and diverse perspectives' },
+  { value: 'analysis', label: 'Analysis', icon: '📋', description: 'Systematic breakdown and analysis' },
+  { value: 'problem_solving', label: 'Problem Solving', icon: '🔧', description: 'Structured problem resolution' },
 ];
 
 const examplePrompts = [
@@ -51,27 +22,22 @@ const examplePrompts = [
     type: "creativity"
   },
   {
-    title: "Business Analysis",
-    prompt: "Analyze the pros and cons of remote work for productivity",
+    title: "Data Analysis",
+    prompt: "Analyze the trends in quarterly sales data for a tech company",
     type: "analysis"
-  },
-  {
-    title: "Problem Solving",
-    prompt: "How would you reduce traffic congestion in a busy city?",
-    type: "problem_solving"
   }
 ];
 
 const PromptEnhancer: React.FC = () => {
   const { actions } = useAppContext();
-  const [inputPrompt, setInputPrompt] = useState('');
+  const [originalPrompt, setOriginalPrompt] = useState('');
   const [enhancedPrompt, setEnhancedPrompt] = useState('');
-  const [enhancementType, setEnhancementType] = useState('reasoning');
+  const [selectedType, setSelectedType] = useState('reasoning');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleEnhance = async () => {
-    if (!inputPrompt.trim()) {
+    if (!originalPrompt.trim()) {
       setError('Please enter a prompt to enhance');
       return;
     }
@@ -80,7 +46,7 @@ const PromptEnhancer: React.FC = () => {
     setError(null);
 
     try {
-      const enhanced = await actions.enhancePrompt(inputPrompt, enhancementType);
+      const enhanced = await actions.enhancePrompt(originalPrompt, selectedType);
       setEnhancedPrompt(enhanced);
     } catch (err) {
       setError('Failed to enhance prompt. Please try again.');
@@ -91,216 +57,146 @@ const PromptEnhancer: React.FC = () => {
   };
 
   const handleClear = () => {
-    setInputPrompt('');
+    setOriginalPrompt('');
     setEnhancedPrompt('');
     setError(null);
   };
 
   const handleCopyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).then(() => {
+      // Could add a toast notification here
+      console.log('Copied to clipboard');
+    });
   };
 
   const handleExampleClick = (example: typeof examplePrompts[0]) => {
-    setInputPrompt(example.prompt);
-    setEnhancementType(example.type);
+    setOriginalPrompt(example.prompt);
+    setSelectedType(example.type);
     setEnhancedPrompt('');
     setError(null);
   };
 
-  const selectedType = enhancementTypes.find(type => type.value === enhancementType);
-
   return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Prompt Enhancer
-      </Typography>
-      
-      <Typography variant="body1" color="textSecondary" paragraph>
-        Transform your prompts into more effective reasoning-enhanced versions using our trained GPT model.
-      </Typography>
+    <div className="prompt-enhancer">
+      <div className="enhancer-header">
+        <h1>Prompt Enhancer</h1>
+        <p className="subtitle">
+          Enhance your prompts using AI to improve clarity, structure, and effectiveness
+        </p>
+      </div>
 
-      <Grid container spacing={3}>
-        {/* Input Section */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Enter Your Prompt
-              </Typography>
-              
-              <Box sx={{ mb: 3 }}>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Enhancement Type</InputLabel>
-                  <Select
-                    value={enhancementType}
-                    label="Enhancement Type"
-                    onChange={(e) => setEnhancementType(e.target.value)}
-                  >
-                    {enhancementTypes.map((type) => (
-                      <MenuItem key={type.value} value={type.value}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {type.icon}
-                          <Box>
-                            <Typography variant="body1">{type.label}</Typography>
-                            <Typography variant="caption" color="textSecondary">
-                              {type.description}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+      {/* Enhancement Type Selection */}
+      <div className="enhancement-types">
+        <h3>Enhancement Type</h3>
+        <div className="type-grid">
+          {enhancementTypes.map((type) => (
+            <div
+              key={type.value}
+              className={`type-card ${selectedType === type.value ? 'type-card-selected' : ''}`}
+              onClick={() => setSelectedType(type.value)}
+            >
+              <div className="type-icon">{type.icon}</div>
+              <div className="type-content">
+                <h4>{type.label}</h4>
+                <p>{type.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-                {selectedType && (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    <strong>{selectedType.label}:</strong> {selectedType.description}
-                  </Alert>
-                )}
+      {/* Example Prompts */}
+      <div className="examples-section">
+        <h3>Example Prompts</h3>
+        <div className="examples-grid">
+          {examplePrompts.map((example, index) => (
+            <div key={index} className="example-card" onClick={() => handleExampleClick(example)}>
+              <h4>{example.title}</h4>
+              <p>{example.prompt}</p>
+              <span className="example-type">{enhancementTypes.find(t => t.value === example.type)?.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  label="Original Prompt"
-                  value={inputPrompt}
-                  onChange={(e) => setInputPrompt(e.target.value)}
-                  placeholder="Enter your prompt here..."
-                  sx={{ mb: 2 }}
-                />
+      {/* Main Enhancement Interface */}
+      <div className="enhancement-interface">
+        <div className="input-section">
+          <div className="prompt-input">
+            <label htmlFor="original-prompt">Original Prompt</label>
+            <textarea
+              id="original-prompt"
+              value={originalPrompt}
+              onChange={(e) => setOriginalPrompt(e.target.value)}
+              placeholder="Enter your prompt here..."
+              rows={6}
+            />
+            <div className="input-actions">
+              <button 
+                className="btn btn-secondary"
+                onClick={handleClear}
+                disabled={isLoading}
+              >
+                🗑️ Clear
+              </button>
+              <button 
+                className="btn btn-primary"
+                onClick={handleEnhance}
+                disabled={isLoading || !originalPrompt.trim()}
+              >
+                {isLoading ? '⏳ Enhancing...' : '✨ Enhance Prompt'}
+              </button>
+            </div>
+          </div>
 
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                    onClick={handleEnhance}
-                    disabled={isLoading || !inputPrompt.trim()}
-                  >
-                    {isLoading ? 'Enhancing...' : 'Enhance Prompt'}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<Clear />}
-                    onClick={handleClear}
-                    disabled={isLoading}
-                  >
-                    Clear
-                  </Button>
-                </Box>
-              </Box>
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
 
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
+          {enhancedPrompt && (
+            <div className="prompt-output">
+              <div className="output-header">
+                <label>Enhanced Prompt</label>
+                <button 
+                  className="btn btn-small"
+                  onClick={() => handleCopyToClipboard(enhancedPrompt)}
+                >
+                  📋 Copy
+                </button>
+              </div>
+              <div className="enhanced-content">
+                {enhancedPrompt}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-              {/* Enhanced Output */}
-              {enhancedPrompt && (
-                <Box>
-                  <Divider sx={{ my: 3 }} />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">Enhanced Prompt</Typography>
-                    <Tooltip title="Copy to clipboard">
-                      <IconButton onClick={() => handleCopyToClipboard(enhancedPrompt)}>
-                        <ContentCopy />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                  
-                  <Paper 
-                    variant="outlined" 
-                    sx={{ 
-                      p: 2, 
-                      backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                      border: '1px solid rgba(25, 118, 210, 0.2)'
-                    }}
-                  >
-                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {enhancedPrompt}
-                    </Typography>
-                  </Paper>
-
-                  <Box sx={{ mt: 2 }}>
-                    <Chip 
-                      icon={selectedType?.icon} 
-                      label={`Enhanced for ${selectedType?.label}`} 
-                      color="primary" 
-                      variant="outlined"
-                    />
-                  </Box>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Sidebar */}
-        <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Example Prompts
-              </Typography>
-              <Typography variant="body2" color="textSecondary" paragraph>
-                Try these examples to see how prompt enhancement works:
-              </Typography>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {examplePrompts.map((example, index) => (
-                  <Paper 
-                    key={index}
-                    variant="outlined" 
-                    sx={{ 
-                      p: 2, 
-                      cursor: 'pointer',
-                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
-                    }}
-                    onClick={() => handleExampleClick(example)}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="subtitle2" color="primary">
-                        {example.title}
-                      </Typography>
-                      <Chip 
-                        size="small" 
-                        label={enhancementTypes.find(t => t.value === example.type)?.label}
-                        variant="outlined"
-                      />
-                    </Box>
-                    <Typography variant="body2" color="textSecondary">
-                      {example.prompt}
-                    </Typography>
-                  </Paper>
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-
-          <Card sx={{ mt: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Tips for Better Results
-              </Typography>
-              <Box component="ul" sx={{ pl: 2, mt: 1 }}>
-                <Typography component="li" variant="body2" paragraph>
-                  Be specific about what you want to achieve
-                </Typography>
-                <Typography component="li" variant="body2" paragraph>
-                  Choose the right enhancement type for your use case
-                </Typography>
-                <Typography component="li" variant="body2" paragraph>
-                  Provide context when needed for better understanding
-                </Typography>
-                <Typography component="li" variant="body2" paragraph>
-                  Experiment with different enhancement types for the same prompt
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+      {/* Tips Section */}
+      <div className="tips-section">
+        <h3>💡 Tips for Better Prompts</h3>
+        <div className="tips-grid">
+          <div className="tip-card">
+            <h4>Be Specific</h4>
+            <p>Provide clear context and specific requirements for better results.</p>
+          </div>
+          <div className="tip-card">
+            <h4>Use Examples</h4>
+            <p>Include examples of desired output format or style when possible.</p>
+          </div>
+          <div className="tip-card">
+            <h4>Set Constraints</h4>
+            <p>Define length, format, or other constraints to guide the response.</p>
+          </div>
+          <div className="tip-card">
+            <h4>Iterate</h4>
+            <p>Refine your prompts based on the results to improve performance.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
