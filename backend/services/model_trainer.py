@@ -9,7 +9,7 @@ from pathlib import Path
 
 from models.schemas import (
     TrainingDataItem, TrainingStatusResponse, TrainingStatus, 
-    EnhancementType, ModelConfig, TrainingConfig
+    EnhancementType, ModelConfiguration, TrainingConfig
 )
 from services.ec2_connector import EC2Connector
 
@@ -20,6 +20,7 @@ class ModelTrainer:
         self.ec2_connector = ec2_connector
         self.training_jobs = {}  # In-memory store for training jobs
         self.models_dir = "/tmp/trained_models"  # Local cache for trained models
+        self.environment = os.getenv("ENVIRONMENT", "development")
         
         # Create models directory if it doesn't exist
         Path(self.models_dir).mkdir(parents=True, exist_ok=True)
@@ -28,12 +29,38 @@ class ModelTrainer:
         self, 
         training_id: str, 
         training_data: List[TrainingDataItem],
-        model_config: ModelConfig,
+        model_config: ModelConfiguration,
         training_config: TrainingConfig
     ) -> str:
         """Start a new training job"""
         try:
             job_id = str(uuid.uuid4())
+            
+            # In development mode, create a mock training job
+            if self.environment == "development":
+                logger.info(f"Development mode: Creating mock training job for {training_id}")
+                
+                # Store job information with mock data
+                self.training_jobs[training_id] = {
+                    "job_id": job_id,
+                    "pid": "mock_pid",
+                    "status": TrainingStatus.RUNNING,
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                    "progress": 0.0,
+                    "current_epoch": 0,
+                    "total_epochs": training_config.epochs,
+                    "logs": [
+                        "Mock training started...",
+                        f"Training {len(training_data)} examples",
+                        "Initializing model..."
+                    ]
+                }
+                
+                # Start mock monitoring task
+                asyncio.create_task(self._monitor_mock_training(training_id))
+                
+                return job_id
             
             # Prepare training data for transfer to EC2
             training_file = await self._prepare_training_data(training_data, training_id)
@@ -162,6 +189,15 @@ class ModelTrainer:
     async def list_model_versions(self) -> List[str]:
         """List available trained model versions"""
         try:
+            # In development mode, return mock versions
+            if self.environment == "development":
+                return [
+                    "base",
+                    "reasoning_enhancer_v1.0_mock",
+                    "reasoning_enhancer_v1.1_mock",
+                    "reasoning_enhancer_latest_mock"
+                ]
+            
             # Check for models on EC2
             result = await self.ec2_connector.execute_command(
                 "ls -1 /opt/models/trained/ 2>/dev/null | grep -E '^reasoning_enhancer_' || echo ''"
@@ -209,7 +245,7 @@ class ModelTrainer:
     async def _create_training_script(
         self, 
         training_id: str, 
-        model_config: ModelConfig, 
+        model_config: ModelConfiguration, 
         training_config: TrainingConfig
     ) -> str:
         """Create the training script for the reasoning enhancer"""
@@ -512,3 +548,57 @@ if __name__ == "__main__":
         
         prefix = enhancements.get(enhancement_type, "Let's think carefully about: ")
         return f"{prefix}{prompt}"
+
+    async def _monitor_mock_training(self, training_id: str):
+        """Monitor mock training progress in development mode"""
+        try:
+            job_info = self.training_jobs[training_id]
+            total_epochs = job_info["total_epochs"]
+            
+            # Simulate training progress over time
+            for epoch in range(1, total_epochs + 1):
+                if training_id not in self.training_jobs:
+                    break
+                    
+                if job_info["status"] != TrainingStatus.RUNNING:
+                    break
+                
+                # Update progress
+                progress = (epoch / total_epochs) * 100
+                loss = max(0.1, 2.5 - (epoch * 0.2))  # Simulate decreasing loss
+                
+                job_info.update({
+                    "current_epoch": epoch,
+                    "progress": progress,
+                    "loss": round(loss, 4),
+                    "eval_loss": round(loss * 0.9, 4),
+                    "learning_rate": 0.0001,
+                    "updated_at": datetime.now()
+                })
+                
+                # Add realistic training logs
+                job_info["logs"].extend([
+                    f"Epoch {epoch}/{total_epochs} - Loss: {loss:.4f}",
+                    f"Progress: {progress:.1f}% - ETA: {total_epochs - epoch} epochs remaining"
+                ])
+                
+                # Keep only last 20 log lines
+                job_info["logs"] = job_info["logs"][-20:]
+                
+                # Wait before next epoch (simulating training time)
+                await asyncio.sleep(5)  # 5 seconds per epoch for demo
+            
+            # Mark as completed
+            if training_id in self.training_jobs and job_info["status"] == TrainingStatus.RUNNING:
+                job_info.update({
+                    "status": TrainingStatus.COMPLETED,
+                    "progress": 100.0,
+                    "updated_at": datetime.now()
+                })
+                job_info["logs"].append("Mock training completed successfully!")
+                logger.info(f"Mock training {training_id} completed")
+                
+        except Exception as e:
+            logger.error(f"Error in mock training monitor: {e}")
+            if training_id in self.training_jobs:
+                self.training_jobs[training_id]["status"] = TrainingStatus.FAILED

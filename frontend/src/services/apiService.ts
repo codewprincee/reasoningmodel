@@ -7,7 +7,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 5000, // 5 second timeout
 });
+
+// Track backend connectivity
+let isBackendAvailable = true;
+let lastConnectionCheck = 0;
+const CONNECTION_CHECK_INTERVAL = 30000; // 30 seconds
 
 // Request interceptor
 api.interceptors.request.use((config) => {
@@ -21,92 +27,170 @@ api.interceptors.request.use((config) => {
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    isBackendAvailable = true;
+    return response;
+  },
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    // Check if it's a connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ENOTFOUND' || !error.response) {
+      isBackendAvailable = false;
+      console.warn('Backend is not available. Running in offline mode.');
+    } else {
+      console.error('API Error:', error.response?.data || error.message);
+    }
     return Promise.reject(error);
   }
 );
 
+// Helper function to check if backend is available
+const checkBackendAvailability = async (): Promise<boolean> => {
+  const now = Date.now();
+  if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL && isBackendAvailable) {
+    return isBackendAvailable;
+  }
+  
+  try {
+    await api.get('/health', { timeout: 3000 });
+    isBackendAvailable = true;
+    lastConnectionCheck = now;
+  } catch (error) {
+    isBackendAvailable = false;
+  }
+  
+  return isBackendAvailable;
+};
+
+// Safe API call wrapper
+const safeApiCall = async <T>(apiCall: () => Promise<T>, fallback?: T): Promise<T | null> => {
+  try {
+    const available = await checkBackendAvailability();
+    if (!available) {
+      return fallback || null;
+    }
+    return await apiCall();
+  } catch (error) {
+    console.warn('API call failed, backend might be offline:', error);
+    return fallback || null;
+  }
+};
+
 export const apiService = {
+  // Backend availability check
+  isBackendAvailable: () => isBackendAvailable,
+  
   // Health check
   async healthCheck() {
-    const response = await api.get('/health');
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.get('/health');
+      return response.data;
+    });
   },
 
   // EC2 Status
   async getEC2Status() {
-    const response = await api.get('/health');
-    return response.data.ec2_connection;
+    return safeApiCall(async () => {
+      const response = await api.get('/health');
+      return response.data.ec2_connection;
+    }, {
+      instance_id: 'offline',
+      instance_state: 'offline',
+      instance_type: 'N/A',
+      public_ip: null,
+      cpu_usage: null,
+      memory_usage: null,
+      gpu_usage: null,
+      model_loaded: false,
+      last_checked: new Date().toISOString()
+    });
   },
 
   // Training endpoints
   async startTraining(trainingData: any) {
-    const response = await api.post('/training/start', trainingData);
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.post('/training/start', trainingData);
+      return response.data;
+    });
   },
 
   async getTrainingStatus(trainingId: string) {
-    const response = await api.get(`/training/status/${trainingId}`);
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.get(`/training/status/${trainingId}`);
+      return response.data;
+    });
   },
 
   async stopTraining(trainingId: string) {
-    const response = await api.post(`/training/stop/${trainingId}`);
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.post(`/training/stop/${trainingId}`);
+      return response.data;
+    });
   },
 
   // Data management endpoints
   async uploadDataset(file: File, name: string, description?: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('dataset_name', name);
-    if (description) {
-      formData.append('description', description);
-    }
+    return safeApiCall(async () => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('dataset_name', name);
+      if (description) {
+        formData.append('description', description);
+      }
 
-    const response = await api.post('/data/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      const response = await api.post('/data/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data.dataset_id;
     });
-    return response.data.dataset_id;
   },
 
   async getDatasets() {
-    const response = await api.get('/data/datasets');
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.get('/data/datasets');
+      return response.data;
+    }, []);
   },
 
   async getDataset(datasetId: string) {
-    const response = await api.get(`/data/dataset/${datasetId}`);
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.get(`/data/dataset/${datasetId}`);
+      return response.data;
+    });
   },
 
   async deleteDataset(datasetId: string) {
-    const response = await api.delete(`/data/dataset/${datasetId}`);
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.delete(`/data/dataset/${datasetId}`);
+      return response.data;
+    });
   },
 
   // Prompt enhancement
   async enhancePrompt(prompt: string, enhancementType: string, modelVersion?: string) {
-    const response = await api.post('/prompt/enhance', {
-      prompt,
-      enhancement_type: enhancementType,
-      model_version: modelVersion,
+    return safeApiCall(async () => {
+      const response = await api.post('/prompt/enhance', {
+        prompt,
+        enhancement_type: enhancementType,
+        model_version: modelVersion,
+      });
+      return response.data;
     });
-    return response.data;
   },
 
   // Model information
   async getModelInfo() {
-    const response = await api.get('/model/info');
-    return response.data;
+    return safeApiCall(async () => {
+      const response = await api.get('/model/info');
+      return response.data;
+    });
   },
 
   async getModelVersions() {
-    const response = await api.get('/model/versions');
-    return response.data.versions;
+    return safeApiCall(async () => {
+      const response = await api.get('/model/versions');
+      return response.data.versions;
+    }, []);
   },
 };

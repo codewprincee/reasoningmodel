@@ -17,7 +17,7 @@ class TrainingStatus(str, Enum):
     FAILED = "failed"
     STOPPED = "stopped"
 
-class ModelConfig(BaseModel):
+class ModelConfiguration(BaseModel):
     model_name: str = "gpt-oss-20b"
     max_length: int = 2048
     temperature: float = 0.7
@@ -47,8 +47,8 @@ class TrainingDataItem(BaseModel):
 
 class TrainingRequest(BaseModel):
     training_data: List[TrainingDataItem] = Field(..., description="Training dataset")
-    model_config: Optional[ModelConfig] = Field(default_factory=ModelConfig)
-    training_config: Optional[TrainingConfig] = Field(default_factory=TrainingConfig)
+    model_configuration: Optional[ModelConfiguration] = None
+    training_configuration: Optional[TrainingConfig] = None
     experiment_name: Optional[str] = Field(None, description="Name for this training experiment")
     description: Optional[str] = Field(None, description="Description of the training goal")
 
@@ -57,7 +57,7 @@ class TrainingResponse(BaseModel):
     job_id: str
     status: str
     message: str
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = None
 
 class TrainingStatusResponse(BaseModel):
     training_id: str
@@ -71,9 +71,9 @@ class TrainingStatusResponse(BaseModel):
     eval_loss: Optional[float] = None
     learning_rate: Optional[float] = None
     eta: Optional[str] = None  # Estimated time remaining
-    logs: List[str] = Field(default_factory=list)
+    logs: List[str] = []
     created_at: datetime
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = None
 
 class PromptRequest(BaseModel):
     prompt: str = Field(..., description="Original prompt to enhance")
@@ -124,4 +124,4 @@ class EC2Status(BaseModel):
     disk_usage: Optional[float] = None
     uptime: Optional[str] = None
     model_loaded: bool = False
-    last_checked: datetime = Field(default_factory=datetime.now)
+    last_checked: Optional[datetime] = None

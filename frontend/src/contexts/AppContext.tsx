@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useCallback, useMemo } from 'react';
 import { apiService } from '../services/apiService';
 
 // Types
@@ -45,6 +45,7 @@ interface AppState {
   ec2Status: EC2Status | null;
   isLoading: boolean;
   error: string | null;
+  isBackendAvailable: boolean;
 }
 
 type AppAction = 
@@ -56,7 +57,8 @@ type AppAction =
   | { type: 'SET_DATASETS'; payload: Dataset[] }
   | { type: 'ADD_DATASET'; payload: Dataset }
   | { type: 'REMOVE_DATASET'; payload: string }
-  | { type: 'SET_EC2_STATUS'; payload: EC2Status };
+  | { type: 'SET_EC2_STATUS'; payload: EC2Status }
+  | { type: 'SET_BACKEND_AVAILABILITY'; payload: boolean };
 
 const initialState: AppState = {
   trainingJobs: [],
@@ -64,6 +66,7 @@ const initialState: AppState = {
   ec2Status: null,
   isLoading: false,
   error: null,
+  isBackendAvailable: true,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -94,6 +97,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_EC2_STATUS':
       return { ...state, ec2Status: action.payload };
+    case 'SET_BACKEND_AVAILABILITY':
+      return { ...state, isBackendAvailable: action.payload };
     default:
       return state;
   }
@@ -119,45 +124,51 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  const actions = {
-    loadTrainingJobs: async () => {
-      try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        // This would be implemented when you have actual training jobs
-        dispatch({ type: 'SET_TRAINING_JOBS', payload: [] });
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    },
+  const loadTrainingJobs = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      // This would be implemented when you have actual training jobs
+      dispatch({ type: 'SET_TRAINING_JOBS', payload: [] });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
 
-    loadDatasets: async () => {
-      try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        const datasets = await apiService.getDatasets();
-        dispatch({ type: 'SET_DATASETS', payload: datasets });
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    },
+  const loadDatasets = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const datasets = await apiService.getDatasets();
+      dispatch({ type: 'SET_DATASETS', payload: datasets || [] });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: apiService.isBackendAvailable() });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: false });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
 
-    loadEC2Status: async () => {
-      try {
-        const status = await apiService.getEC2Status();
+  const loadEC2Status = useCallback(async () => {
+    try {
+      const status = await apiService.getEC2Status();
+      if (status) {
         dispatch({ type: 'SET_EC2_STATUS', payload: status });
-      } catch (error) {
-        console.error('Failed to load EC2 status:', error);
+        dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: apiService.isBackendAvailable() });
       }
-    },
+    } catch (error) {
+      console.error('Failed to load EC2 status:', error);
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: false });
+    }
+  }, []);
 
-    startTraining: async (trainingData: any): Promise<string> => {
-      try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        const response = await apiService.startTraining(trainingData);
-        
+  const startTraining = useCallback(async (trainingData: any): Promise<string> => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const response = await apiService.startTraining(trainingData);
+      
+      if (response) {
         // Add the new training job to state
         const newJob: TrainingJob = {
           training_id: response.training_id,
@@ -168,20 +179,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
           logs: [],
         };
         dispatch({ type: 'ADD_TRAINING_JOB', payload: newJob });
-        
         return response.training_id;
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-        throw error;
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
+      } else {
+        throw new Error('Backend not available');
       }
-    },
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
 
-    stopTraining: async (trainingId: string) => {
-      try {
-        await apiService.stopTraining(trainingId);
-        
+  const stopTraining = useCallback(async (trainingId: string) => {
+    try {
+      const result = await apiService.stopTraining(trainingId);
+      
+      if (result) {
         // Update job status
         const updatedJob = state.trainingJobs.find(j => j.training_id === trainingId);
         if (updatedJob) {
@@ -190,47 +204,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
             payload: { ...updatedJob, status: 'stopped' },
           });
         }
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
       }
-    },
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+    }
+  }, [state.trainingJobs]);
 
-    uploadDataset: async (file: File, name: string, description?: string): Promise<string> => {
-      try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        const datasetId = await apiService.uploadDataset(file, name, description);
-        
-        // Reload datasets
-        await actions.loadDatasets();
-        
+  const uploadDataset = useCallback(async (file: File, name: string, description?: string): Promise<string> => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const datasetId = await apiService.uploadDataset(file, name, description);
+      
+      if (datasetId) {
+        // Reload datasets after successful upload
+        const datasets = await apiService.getDatasets();
+        dispatch({ type: 'SET_DATASETS', payload: datasets || [] });
         return datasetId;
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-        throw error;
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
+      } else {
+        throw new Error('Backend not available');
       }
-    },
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
 
-    deleteDataset: async (datasetId: string) => {
-      try {
-        await apiService.deleteDataset(datasetId);
+  const deleteDataset = useCallback(async (datasetId: string) => {
+    try {
+      const result = await apiService.deleteDataset(datasetId);
+      if (result !== null) {
         dispatch({ type: 'REMOVE_DATASET', payload: datasetId });
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
       }
-    },
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+    }
+  }, []);
 
-    enhancePrompt: async (prompt: string, type: string): Promise<string> => {
-      try {
-        const response = await apiService.enhancePrompt(prompt, type);
+  const enhancePrompt = useCallback(async (prompt: string, type: string): Promise<string> => {
+    try {
+      const response = await apiService.enhancePrompt(prompt, type);
+      if (response && response.enhanced_prompt) {
         return response.enhanced_prompt;
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-        throw error;
+      } else {
+        throw new Error('Backend not available or invalid response');
       }
-    },
-  };
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      throw error;
+    }
+  }, []);
+
+  const actions = useMemo(() => ({
+    loadTrainingJobs,
+    loadDatasets,
+    loadEC2Status,
+    startTraining,
+    stopTraining,
+    uploadDataset,
+    deleteDataset,
+    enhancePrompt,
+  }), [loadTrainingJobs, loadDatasets, loadEC2Status, startTraining, stopTraining, uploadDataset, deleteDataset, enhancePrompt]);
 
   return (
     <AppContext.Provider value={{ state, dispatch, actions }}>

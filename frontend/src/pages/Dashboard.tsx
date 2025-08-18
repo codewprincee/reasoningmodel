@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+// Temporarily removed Recharts to fix infinite loop
+// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 
 // Custom components to replace MUI
@@ -52,6 +53,7 @@ const Dashboard: React.FC = () => {
   const { state, actions } = useAppContext();
 
   useEffect(() => {
+    // Initial data load
     actions.loadEC2Status();
     actions.loadTrainingJobs();
     actions.loadDatasets();
@@ -62,7 +64,7 @@ const Dashboard: React.FC = () => {
     }, 30000); // Poll every 30 seconds
 
     return () => clearInterval(interval);
-  }, [actions]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefreshStatus = () => {
     actions.loadEC2Status();
@@ -83,14 +85,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Mock data for the chart (in real app, this would come from training logs)
-  const chartData = [
-    { epoch: 1, loss: 0.8 },
-    { epoch: 2, loss: 0.6 },
-    { epoch: 3, loss: 0.4 },
-    { epoch: 4, loss: 0.3 },
-    { epoch: 5, loss: 0.25 },
-  ];
+  // Chart temporarily disabled to fix infinite loop
+  // Will be re-enabled with proper memoization
 
   return (
     <div className="dashboard">
@@ -130,7 +126,7 @@ const Dashboard: React.FC = () => {
                   <span className="label">IP:</span>
                   <span>{state.ec2Status.public_ip || 'N/A'}</span>
                 </div>
-                {state.ec2Status.cpu_usage && (
+                {state.ec2Status.cpu_usage !== null && state.ec2Status.cpu_usage !== undefined && (
                   <div className="metric-section">
                     <div className="metric-label">
                       CPU: {state.ec2Status.cpu_usage.toFixed(1)}%
@@ -168,7 +164,7 @@ const Dashboard: React.FC = () => {
                 <span className="label">Parameters:</span>
                 <span>20B</span>
               </div>
-              {state.ec2Status?.gpu_usage && (
+                              {state.ec2Status?.gpu_usage !== null && state.ec2Status?.gpu_usage !== undefined && (
                 <div className="metric-section">
                   <div className="metric-label">
                     GPU: {state.ec2Status.gpu_usage.toFixed(1)}%
@@ -257,26 +253,25 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Training Progress Chart */}
+        {/* Training Progress Chart - Temporarily Disabled */}
         <Card className="wide-card">
           <CardContent>
             <h3>Training Progress</h3>
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="epoch" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="loss"
-                    stroke="#1976d2"
-                    strokeWidth={2}
-                    dot={{ fill: '#1976d2' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="chart-container" style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              height: '300px',
+              background: '#f8f9fa',
+              border: '2px dashed #ddd',
+              borderRadius: '8px'
+            }}>
+              <div style={{ textAlign: 'center', color: '#666' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📊</div>
+                <h4>Training Progress Chart</h4>
+                <p>Chart temporarily disabled to fix infinite loop issue</p>
+                <p style={{ fontSize: '0.875rem' }}>Will be re-enabled with proper optimization</p>
+              </div>
             </div>
           </CardContent>
         </Card>

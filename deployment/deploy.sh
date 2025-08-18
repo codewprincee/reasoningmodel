@@ -52,14 +52,13 @@ mkdir -p $APP_DIR
 cd $APP_DIR
 
 # Clone or update repository (if deploying from git)
-# Uncomment if deploying from git repository
-# if [ -d ".git" ]; then
-#     print_status "Updating from git repository..."
-#     git pull origin main
-# else
-#     print_status "Cloning repository..."
-#     git clone https://github.com/your-username/ai-model-trainer.git .
-# fi
+if [ -d ".git" ]; then
+    print_status "Updating from git repository..."
+    git pull origin main
+else
+    print_status "Cloning repository..."
+    git clone https://github.com/codewprincee/reasoningmodel.git .
+fi
 
 # Create Python virtual environment
 print_status "Creating Python virtual environment..."
@@ -73,21 +72,60 @@ source $VENV_DIR/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Create .env file if it doesn't exist
+# Detect available Ollama model
+print_status "Detecting available Ollama model..."
+AVAILABLE_MODEL=""
+if command -v ollama &> /dev/null && systemctl is-active --quiet ollama; then
+    # Get the first available model
+    AVAILABLE_MODEL=$(ollama list 2>/dev/null | grep -v "NAME" | head -n1 | awk '{print $1}' || echo "")
+fi
+
+# Use detected model or default fallback
+OLLAMA_MODEL_NAME=${AVAILABLE_MODEL:-"llama2"}
+print_status "Using Ollama model: $OLLAMA_MODEL_NAME"
+
+# Create .env file if it doesn't exist  
 if [ ! -f "$BACKEND_DIR/.env" ]; then
     print_status "Creating environment configuration..."
     cat > $BACKEND_DIR/.env << EOF
 # AI Model Trainer Configuration
 OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=gpt-oss-20b
+OLLAMA_MODEL=$OLLAMA_MODEL_NAME
 API_HOST=0.0.0.0
 API_PORT=8000
 DATABASE_URL=sqlite:///./training_data.db
 SECRET_KEY=$(openssl rand -hex 32)
 ENVIRONMENT=production
+LOG_LEVEL=INFO
+ALLOWED_ORIGINS=["*"]
 EOF
     print_warning "Please update the .env file with your specific configuration"
+    print_warning "Consider updating ALLOWED_ORIGINS for better security"
 fi
+
+# Validate Ollama service
+print_status "Validating Ollama service..."
+if ! systemctl is-active --quiet ollama; then
+    print_warning "Ollama service is not running. Attempting to start..."
+    sudo systemctl start ollama
+    sleep 5
+    
+    if ! systemctl is-active --quiet ollama; then
+        print_error "Failed to start Ollama service"
+        print_error "Please check Ollama installation and try again"
+        exit 1
+    fi
+fi
+
+# Test Ollama API connectivity
+print_status "Testing Ollama API connectivity..."
+if ! curl -s http://localhost:11434/api/version > /dev/null; then
+    print_error "Cannot connect to Ollama API at http://localhost:11434"
+    print_error "Please ensure Ollama is properly installed and running"
+    exit 1
+fi
+
+print_status "✅ Ollama service validated"
 
 # Set up systemd service
 print_status "Setting up systemd service..."
@@ -113,6 +151,7 @@ print_status "Creating necessary directories..."
 mkdir -p $APP_DIR/logs
 mkdir -p $APP_DIR/data
 mkdir -p $APP_DIR/uploads
+mkdir -p $APP_DIR/backend/training_data
 
 # Set proper permissions
 print_status "Setting file permissions..."
@@ -124,8 +163,9 @@ print_status "Starting services..."
 sudo systemctl restart nginx
 sudo systemctl restart $SERVICE_NAME
 
-# Wait a moment for services to start
-sleep 3
+# Wait for services to start
+print_status "Waiting for services to start..."
+sleep 5
 
 # Check service status
 print_status "Checking service status..."
@@ -148,6 +188,15 @@ fi
 # Get server IP
 SERVER_IP=$(curl -s http://checkip.amazonaws.com)
 
+# Final API test
+print_status "Testing API endpoints..."
+if curl -s http://localhost:8000/health > /dev/null; then
+    print_status "✅ API health endpoint responding"
+else
+    print_warning "❌ API health endpoint not responding"
+    print_warning "Check service logs: sudo journalctl -u $SERVICE_NAME -n 20"
+fi
+
 print_status "🎉 Deployment completed successfully!"
 echo ""
 echo "📋 Deployment Summary:"
@@ -162,10 +211,16 @@ echo "   • Restart Nginx: sudo systemctl restart nginx"
 echo "   • Check status: sudo systemctl status $SERVICE_NAME"
 echo ""
 echo "⚠️  Next Steps:"
-echo "   1. Update your domain DNS to point to: $SERVER_IP"
-echo "   2. Update nginx.conf with your domain name"
-echo "   3. Set up SSL certificate (recommended)"
+echo "   1. Test the API: curl http://$SERVER_IP/health"
+echo "   2. Update nginx.conf with your domain name if needed"
+echo "   3. Set up SSL certificate: sudo certbot --nginx -d your-domain.com"
 echo "   4. Configure your frontend to use: http://$SERVER_IP"
-echo "   5. Ensure Ollama is running with your GPT model"
+echo "   5. Verify Ollama model: ollama list"
+echo "   6. Test model: ollama run $OLLAMA_MODEL_NAME \"Hello, world!\""
 echo ""
-print_warning "Don't forget to configure your .env file and restart the service!"
+echo "🔧 Configuration Notes:"
+echo "   • Current Ollama model: $OLLAMA_MODEL_NAME"
+echo "   • Environment file: $BACKEND_DIR/.env"
+echo "   • Update ALLOWED_ORIGINS in .env for production security"
+echo ""
+print_warning "If using a different model, update OLLAMA_MODEL in .env and restart the service!"

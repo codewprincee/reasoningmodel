@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../../contexts/AppContext';
+import BackendStatus from '../BackendStatus/BackendStatus';
 import './Layout.css';
 
 interface LayoutProps {
@@ -57,6 +58,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="layout">
+      {/* Backend Status Banner */}
+      {/* <BackendStatus /> */}
+      
       {/* Header */}
       <header className="header">
         <button 
