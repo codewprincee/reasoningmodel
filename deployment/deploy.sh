@@ -37,6 +37,19 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Ensure we're running on Linux/EC2 (not on macOS/local)
+if [ "$(uname -s)" = "Darwin" ]; then
+    print_error "This deployment script must be run on your EC2 instance (Ubuntu), not on your local machine."
+    print_status "SSH into EC2 and run it there, e.g.:"
+    print_status "ssh -i <your-key.pem> ubuntu@<EC2_IP> 'bash -lc \"cd /home/ubuntu/ai-model && ./deployment/deploy.sh\"'"
+    exit 1
+fi
+
+# Recommend using the ubuntu user
+if [ "$(id -un)" != "$APP_USER" ]; then
+    print_warning "Running as user '$(id -un)'. It's recommended to run as '$APP_USER'."
+fi
+
 # Fix any problematic repositories
 print_status "Fixing repository issues..."
 sudo rm -f /etc/apt/sources.list.d/certbot-*
@@ -239,9 +252,9 @@ fi
 print_status "🎉 Deployment completed successfully!"
 echo ""
 echo "📋 Deployment Summary:"
-echo "   • Backend API: http://$SERVER_IP"
-echo "   • Health Check: http://$SERVER_IP/health"
-echo "   • API Docs: http://$SERVER_IP/docs"
+echo "   • Backend API: http://$SERVER_IP:8000"
+echo "   • Health Check: http://$SERVER_IP:8000/health"
+echo "   • API Docs: http://$SERVER_IP:8000/docs"
 echo ""
 echo "🔧 Useful Commands:"
 echo "   • View logs: sudo journalctl -u $SERVICE_NAME -f"
