@@ -1,0 +1,248 @@
+import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import { apiService } from '../services/apiService';
+
+// Types
+interface TrainingJob {
+  training_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  progress: number;
+  current_epoch?: number;
+  total_epochs?: number;
+  loss?: number;
+  eval_loss?: number;
+  created_at: string;
+  updated_at: string;
+  logs: string[];
+}
+
+interface Dataset {
+  dataset_id: string;
+  name: string;
+  description?: string;
+  filename: string;
+  size: number;
+  file_size: number;
+  format: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface EC2Status {
+  instance_id: string;
+  instance_state: string;
+  instance_type: string;
+  public_ip?: string;
+  cpu_usage?: number;
+  memory_usage?: number;
+  gpu_usage?: number;
+  model_loaded: boolean;
+  last_checked: string;
+}
+
+interface AppState {
+  trainingJobs: TrainingJob[];
+  datasets: Dataset[];
+  ec2Status: EC2Status | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+type AppAction = 
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_TRAINING_JOBS'; payload: TrainingJob[] }
+  | { type: 'ADD_TRAINING_JOB'; payload: TrainingJob }
+  | { type: 'UPDATE_TRAINING_JOB'; payload: TrainingJob }
+  | { type: 'SET_DATASETS'; payload: Dataset[] }
+  | { type: 'ADD_DATASET'; payload: Dataset }
+  | { type: 'REMOVE_DATASET'; payload: string }
+  | { type: 'SET_EC2_STATUS'; payload: EC2Status };
+
+const initialState: AppState = {
+  trainingJobs: [],
+  datasets: [],
+  ec2Status: null,
+  isLoading: false,
+  error: null,
+};
+
+function appReducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_TRAINING_JOBS':
+      return { ...state, trainingJobs: action.payload };
+    case 'ADD_TRAINING_JOB':
+      return { ...state, trainingJobs: [action.payload, ...state.trainingJobs] };
+    case 'UPDATE_TRAINING_JOB':
+      return {
+        ...state,
+        trainingJobs: state.trainingJobs.map(job =>
+          job.training_id === action.payload.training_id ? action.payload : job
+        ),
+      };
+    case 'SET_DATASETS':
+      return { ...state, datasets: action.payload };
+    case 'ADD_DATASET':
+      return { ...state, datasets: [action.payload, ...state.datasets] };
+    case 'REMOVE_DATASET':
+      return {
+        ...state,
+        datasets: state.datasets.filter(d => d.dataset_id !== action.payload),
+      };
+    case 'SET_EC2_STATUS':
+      return { ...state, ec2Status: action.payload };
+    default:
+      return state;
+  }
+}
+
+interface AppContextType {
+  state: AppState;
+  dispatch: React.Dispatch<AppAction>;
+  actions: {
+    loadTrainingJobs: () => Promise<void>;
+    loadDatasets: () => Promise<void>;
+    loadEC2Status: () => Promise<void>;
+    startTraining: (data: any) => Promise<string>;
+    stopTraining: (trainingId: string) => Promise<void>;
+    uploadDataset: (file: File, name: string, description?: string) => Promise<string>;
+    deleteDataset: (datasetId: string) => Promise<void>;
+    enhancePrompt: (prompt: string, type: string) => Promise<string>;
+  };
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+
+  const actions = {
+    loadTrainingJobs: async () => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        // This would be implemented when you have actual training jobs
+        dispatch({ type: 'SET_TRAINING_JOBS', payload: [] });
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    },
+
+    loadDatasets: async () => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const datasets = await apiService.getDatasets();
+        dispatch({ type: 'SET_DATASETS', payload: datasets });
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    },
+
+    loadEC2Status: async () => {
+      try {
+        const status = await apiService.getEC2Status();
+        dispatch({ type: 'SET_EC2_STATUS', payload: status });
+      } catch (error) {
+        console.error('Failed to load EC2 status:', error);
+      }
+    },
+
+    startTraining: async (trainingData: any): Promise<string> => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await apiService.startTraining(trainingData);
+        
+        // Add the new training job to state
+        const newJob: TrainingJob = {
+          training_id: response.training_id,
+          status: 'pending',
+          progress: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          logs: [],
+        };
+        dispatch({ type: 'ADD_TRAINING_JOB', payload: newJob });
+        
+        return response.training_id;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+        throw error;
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    },
+
+    stopTraining: async (trainingId: string) => {
+      try {
+        await apiService.stopTraining(trainingId);
+        
+        // Update job status
+        const updatedJob = state.trainingJobs.find(j => j.training_id === trainingId);
+        if (updatedJob) {
+          dispatch({
+            type: 'UPDATE_TRAINING_JOB',
+            payload: { ...updatedJob, status: 'stopped' },
+          });
+        }
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      }
+    },
+
+    uploadDataset: async (file: File, name: string, description?: string): Promise<string> => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const datasetId = await apiService.uploadDataset(file, name, description);
+        
+        // Reload datasets
+        await actions.loadDatasets();
+        
+        return datasetId;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+        throw error;
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    },
+
+    deleteDataset: async (datasetId: string) => {
+      try {
+        await apiService.deleteDataset(datasetId);
+        dispatch({ type: 'REMOVE_DATASET', payload: datasetId });
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      }
+    },
+
+    enhancePrompt: async (prompt: string, type: string): Promise<string> => {
+      try {
+        const response = await apiService.enhancePrompt(prompt, type);
+        return response.enhanced_prompt;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+        throw error;
+      }
+    },
+  };
+
+  return (
+    <AppContext.Provider value={{ state, dispatch, actions }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useAppContext() {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
+}
