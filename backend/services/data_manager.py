@@ -100,9 +100,7 @@ class DataManager:
                     file_path=str(file_path),
                     size=example_count,
                     file_size=file_size,
-                    format=file_format,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    format=file_format
                 )
                 
                 session.add(dataset)
