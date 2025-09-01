@@ -33,6 +33,7 @@ class TrainingConfig(BaseModel):
     eval_steps: int = 250
     logging_steps: int = 50
     max_grad_norm: float = 1.0
+    learning_rate: float = 5e-5
     use_lora: bool = True
     lora_r: int = 16
     lora_alpha: int = 32
