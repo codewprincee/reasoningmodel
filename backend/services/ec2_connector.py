@@ -44,13 +44,27 @@ class EC2Connector:
         """Close HTTP client"""
         await self.client.aclose()
 
-    async def call_ollama_api(self, endpoint: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def call_ollama_api(self, endpoint: str, data: Dict[str, Any] = None, stream: bool = False) -> Dict[str, Any]:
         """Make API call to Ollama"""
         try:
             url = f"{self.ollama_host}/api/{endpoint}"
             
             if data:
-                response = await self.client.post(url, json=data)
+                if stream:
+                    # For streaming requests
+                    response = await self.client.post(url, json=data)
+                    if response.status_code == 200:
+                        return {
+                            "success": True,
+                            "stream": self._stream_response(response)
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"HTTP {response.status_code}: {response.text}"
+                        }
+                else:
+                    response = await self.client.post(url, json=data)
             else:
                 response = await self.client.get(url)
             
@@ -71,6 +85,20 @@ class EC2Connector:
                 "success": False,
                 "error": str(e)
             }
+
+    async def _stream_response(self, response):
+        """Stream response from Ollama API"""
+        try:
+            async for line in response.aiter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        yield chunk
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error(f"Error streaming response: {e}")
+            yield {"error": str(e), "done": True}
 
     async def test_connection(self) -> bool:
         """Test connection to Ollama service"""
