@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.base import BaseHTTPMiddleware  # pyright: ignore[reportMissingImports]
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
@@ -35,7 +36,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware - Allow all origins
+# Custom CORS middleware to ensure all responses have CORS headers
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Handle preflight requests
+        if request.method == "OPTIONS":
+            response = Response()
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "86400"
+            return response
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # Add CORS headers to all responses
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+        
+        return response
+
+# Add custom CORS middleware
+app.add_middleware(CustomCORSMiddleware)
+
+# Also add the standard CORS middleware as backup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -69,6 +96,7 @@ async def root():
     return {"message": "AI Model Trainer API", "status": "running"}
 
 @app.get("/health")
+@app.options("/health")
 async def health_check():
     """Health check endpoint"""
     ec2_status = await ec2_connector.check_status()
