@@ -33,32 +33,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
-if isinstance(allowed_origins, str):
-    try:
-        import json
-        allowed_origins = json.loads(allowed_origins)
-    except:
-        allowed_origins = [allowed_origins]
-
-# Always include localhost for development
-development_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://apipdoll.hyperbrainlabs.com"
-]
-
-if isinstance(allowed_origins, list):
-    allowed_origins.extend(development_origins)
-else:
-    allowed_origins = development_origins
-
+# CORS middleware - Allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=["*"],
+    allow_credentials=False,  # Must be False when allow_origins is ["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 

@@ -142,11 +142,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const datasets = await apiService.getDatasets();
-      dispatch({ type: 'SET_DATASETS', payload: datasets });
-      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: true });
+      dispatch({ type: 'SET_DATASETS', payload: datasets || [] });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: apiService.isBackendAvailable() });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
-      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: false });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: apiService.isBackendAvailable() });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }

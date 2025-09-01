@@ -37,6 +37,8 @@ api.interceptors.response.use(
       isBackendAvailable = false;
       console.warn('Backend is not available. Running in offline mode.');
     } else {
+      // For other errors (like 404, 500, etc.), the backend is still available
+      isBackendAvailable = true;
       console.error('API Error:', error.response?.data || error.message);
     }
     return Promise.reject(error);
@@ -51,11 +53,18 @@ const checkBackendAvailability = async (): Promise<boolean> => {
   }
   
   try {
-    await api.get('/health', { timeout: 3000 });
+    await api.get('/health', { timeout: 5000 });
     isBackendAvailable = true;
     lastConnectionCheck = now;
-  } catch (error) {
-    isBackendAvailable = false;
+  } catch (error: any) {
+    // Only mark as unavailable for connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ENOTFOUND' || !error.response) {
+      isBackendAvailable = false;
+    } else {
+      // If we get a response (even error responses), backend is available
+      isBackendAvailable = true;
+      lastConnectionCheck = now;
+    }
   }
   
   return isBackendAvailable;
@@ -64,14 +73,19 @@ const checkBackendAvailability = async (): Promise<boolean> => {
 // Safe API call wrapper
 const safeApiCall = async <T>(apiCall: () => Promise<T>, fallback?: T): Promise<T | null> => {
   try {
-    const available = await checkBackendAvailability();
-    if (!available) {
-      return fallback || null;
-    }
     return await apiCall();
-  } catch (error) {
-    console.warn('API call failed, backend might be offline:', error);
-    return fallback || null;
+  } catch (error: any) {
+    // Only set backend as unavailable for actual connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ENOTFOUND' || !error.response) {
+      isBackendAvailable = false;
+      console.warn('Backend is not available. Running in offline mode.');
+      return fallback || null;
+    } else {
+      // For other errors (like 404, 500, etc.), the backend is still available
+      isBackendAvailable = true;
+      console.error('API call failed:', error.response?.data || error.message);
+      throw error; // Re-throw the error for proper error handling
+    }
   }
 };
 

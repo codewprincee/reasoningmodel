@@ -82,7 +82,7 @@ if [ -d ".git" ]; then
     git pull origin main
 else
     print_status "Cloning repository..."
-    git clone https://github.com/codewprincee/reasoningmodel.git .
+    git clone nhttps://github.com/codewprincee/reasoningmodel.git .
 fi
 
 # Create Python virtual environment
