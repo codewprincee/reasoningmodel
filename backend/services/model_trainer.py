@@ -539,15 +539,38 @@ if __name__ == "__main__":
         """Basic fallback enhancement when Ollama is not available"""
         
         enhancements = {
-            EnhancementType.REASONING: "Let's think step by step about this problem: ",
-            EnhancementType.LOGIC: "Let's apply logical reasoning to analyze: ",
-            EnhancementType.CREATIVITY: "Let's approach this creatively and consider multiple perspectives for: ",
-            EnhancementType.ANALYSIS: "Let's systematically analyze the following: ",
-            EnhancementType.PROBLEM_SOLVING: "Let's break down this problem into manageable steps: "
+            EnhancementType.REASONING: {
+                "prefix": "Let's approach this problem with systematic reasoning.",
+                "instructions": ["Break down the problem into smaller components", "Consider the logical flow of steps", "Examine potential assumptions", "Think through implications and consequences"],
+                "template": "Let's think step by step about this problem:\n\n{prompt}\n\nTo solve this effectively:\n1. First, I'll identify the key components\n2. Then, I'll analyze the relationships between them\n3. Next, I'll consider multiple solution approaches\n4. Finally, I'll evaluate and choose the best approach\n\nLet me work through this systematically:"
+            },
+            EnhancementType.LOGIC: {
+                "prefix": "Let's apply logical reasoning and structured analysis.",
+                "instructions": ["Use deductive and inductive reasoning", "Identify premises and conclusions", "Check for logical consistency", "Evaluate evidence critically"],
+                "template": "Let's apply logical reasoning to analyze:\n\n{prompt}\n\nLogical analysis framework:\n1. Identify the core question or hypothesis\n2. Examine the available evidence or premises\n3. Apply logical reasoning to draw conclusions\n4. Test the validity of conclusions\n5. Consider alternative logical pathways\n\nLet me systematically work through this:"
+            },
+            EnhancementType.CREATIVITY: {
+                "prefix": "Let's explore this with creative and innovative thinking.",
+                "instructions": ["Consider unconventional approaches", "Think beyond traditional boundaries", "Explore multiple perspectives", "Generate novel solutions"],
+                "template": "Let's approach this creatively and consider multiple perspectives:\n\n{prompt}\n\nCreative exploration strategy:\n1. Brainstorm diverse approaches without initial judgment\n2. Consider analogies from different domains\n3. Explore 'what if' scenarios\n4. Combine ideas in unexpected ways\n5. Challenge assumptions and conventional thinking\n\nLet me explore this creatively:"
+            },
+            EnhancementType.ANALYSIS: {
+                "prefix": "Let's conduct a thorough and systematic analysis.",
+                "instructions": ["Break down into constituent parts", "Examine relationships and patterns", "Identify key factors and variables", "Synthesize findings"],
+                "template": "Let's systematically analyze the following:\n\n{prompt}\n\nAnalytical framework:\n1. Define the scope and boundaries of analysis\n2. Break down into key components\n3. Examine relationships and interdependencies\n4. Identify patterns, trends, and anomalies\n5. Synthesize findings into actionable insights\n\nLet me conduct a thorough analysis:"
+            },
+            EnhancementType.PROBLEM_SOLVING: {
+                "prefix": "Let's use structured problem-solving methodology.",
+                "instructions": ["Define the problem clearly", "Generate multiple solutions", "Evaluate alternatives", "Implement and monitor results"],
+                "template": "Let's break down this problem into manageable steps:\n\n{prompt}\n\nProblem-solving methodology:\n1. Problem definition: Clearly articulate what needs to be solved\n2. Root cause analysis: Identify underlying causes\n3. Solution generation: Brainstorm multiple approaches\n4. Evaluation: Assess pros, cons, and feasibility\n5. Implementation planning: Create actionable steps\n6. Success metrics: Define how to measure progress\n\nLet me work through this systematically:"
+            }
         }
         
-        prefix = enhancements.get(enhancement_type, "Let's think carefully about: ")
-        return f"{prefix}{prompt}"
+        enhancement = enhancements.get(enhancement_type, {
+            "template": "Let's think carefully about: {prompt}\n\nI'll approach this thoughtfully and provide a comprehensive response."
+        })
+        
+        return enhancement["template"].format(prompt=prompt)
 
     async def _monitor_mock_training(self, training_id: str):
         """Monitor mock training progress in development mode"""

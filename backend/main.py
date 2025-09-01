@@ -54,8 +54,20 @@ ec2_connector = EC2Connector()
 model_trainer = ModelTrainer(ec2_connector)
 data_manager = DataManager()
 
-# Note: Startup and shutdown events removed for compatibility
-# Database and connections will be initialized on first request
+# Global initialization flag
+_initialized = False
+
+async def initialize_services():
+    """Initialize all services on startup"""
+    global _initialized
+    if not _initialized:
+        try:
+            await data_manager.initialize_db()
+            _initialized = True
+            print("Services initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize services: {e}")
+            # Continue anyway for development
 
 @app.get("/")
 async def root():
@@ -126,6 +138,7 @@ async def stop_training(training_id: str):
 async def enhance_prompt(request: PromptRequest):
     """Enhance a prompt using the trained model"""
     try:
+        await initialize_services()
         enhanced_prompt = await model_trainer.enhance_prompt(
             prompt=request.prompt,
             enhancement_type=request.enhancement_type,
@@ -140,6 +153,7 @@ async def enhance_prompt(request: PromptRequest):
         )
     
     except Exception as e:
+        print(f"Error in enhance_prompt: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/data/upload")
@@ -150,6 +164,7 @@ async def upload_training_data(
 ):
     """Upload training data file"""
     try:
+        await initialize_services()
         dataset_id = await data_manager.save_dataset(
             file=file,
             name=dataset_name,
@@ -163,24 +178,29 @@ async def upload_training_data(
         }
     
     except Exception as e:
+        print(f"Error in upload_training_data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/data/datasets", response_model=List[DatasetInfo])
 async def list_datasets():
     """List all uploaded datasets"""
     try:
+        await initialize_services()
         datasets = await data_manager.list_datasets()
         return datasets
     except Exception as e:
+        print(f"Error in list_datasets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/data/dataset/{dataset_id}")
 async def get_dataset(dataset_id: str):
     """Get dataset details and sample data"""
     try:
+        await initialize_services()
         dataset = await data_manager.get_dataset(dataset_id)
         return dataset
     except Exception as e:
+        print(f"Error in get_dataset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/model/info")

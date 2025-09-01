@@ -61,6 +61,9 @@ class DataManager:
     ) -> str:
         """Save uploaded dataset file and metadata"""
         try:
+            if not self.async_session:
+                await self.initialize_db()
+                
             dataset_id = str(uuid.uuid4())
             file_extension = Path(file.filename).suffix.lower()
             
@@ -115,56 +118,73 @@ class DataManager:
 
     async def list_datasets(self) -> List[DatasetInfo]:
         """List all uploaded datasets"""
-        async with self.async_session() as session:
-            result = await session.execute(
-                sqlalchemy.select(Dataset).order_by(Dataset.created_at.desc())
-            )
-            datasets = result.scalars().all()
+        if not self.async_session:
+            await self.initialize_db()
             
-            return [
-                DatasetInfo(
-                    dataset_id=dataset.dataset_id,
-                    name=dataset.name,
-                    description=dataset.description,
-                    filename=dataset.filename,
-                    size=dataset.size,
-                    file_size=dataset.file_size,
-                    format=dataset.format,
-                    created_at=dataset.created_at,
-                    updated_at=dataset.updated_at
+        try:
+            async with self.async_session() as session:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(Dataset).order_by(Dataset.created_at.desc())
                 )
-                for dataset in datasets
-            ]
+                datasets = result.scalars().all()
+                
+                return [
+                    DatasetInfo(
+                        dataset_id=dataset.dataset_id,
+                        name=dataset.name,
+                        description=dataset.description,
+                        filename=dataset.filename,
+                        size=dataset.size,
+                        file_size=dataset.file_size,
+                        format=dataset.format,
+                        created_at=dataset.created_at,
+                        updated_at=dataset.updated_at
+                    )
+                    for dataset in datasets
+                ]
+        except Exception as e:
+            print(f"Database error in list_datasets: {e}")
+            # Return empty list for development when database is not available
+            return []
 
     async def get_dataset(self, dataset_id: str) -> Dict[str, Any]:
         """Get dataset details and sample data"""
-        async with self.async_session() as session:
-            result = await session.execute(
-                sqlalchemy.select(Dataset).where(Dataset.dataset_id == dataset_id)
-            )
-            dataset = result.scalar_one_or_none()
+        if not self.async_session:
+            await self.initialize_db()
             
-            if not dataset:
-                raise Exception(f"Dataset {dataset_id} not found")
-            
-            # Load sample data
-            sample_data = await self._load_sample_data(dataset.file_path, dataset.format)
-            
-            return {
-                "info": DatasetInfo(
-                    dataset_id=dataset.dataset_id,
-                    name=dataset.name,
-                    description=dataset.description,
-                    filename=dataset.filename,
-                    size=dataset.size,
-                    file_size=dataset.file_size,
-                    format=dataset.format,
-                    created_at=dataset.created_at,
-                    updated_at=dataset.updated_at
-                ),
-                "sample_data": sample_data,
-                "schema": await self._infer_schema(dataset.file_path, dataset.format)
-            }
+        try:
+            async with self.async_session() as session:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(Dataset).where(Dataset.dataset_id == dataset_id)
+                )
+                dataset = result.scalar_one_or_none()
+                
+                if not dataset:
+                    raise Exception(f"Dataset {dataset_id} not found")
+                
+                # Load sample data
+                sample_data = await self._load_sample_data(dataset.file_path, dataset.format)
+                
+                return {
+                    "info": DatasetInfo(
+                        dataset_id=dataset.dataset_id,
+                        name=dataset.name,
+                        description=dataset.description,
+                        filename=dataset.filename,
+                        size=dataset.size,
+                        file_size=dataset.file_size,
+                        format=dataset.format,
+                        created_at=dataset.created_at,
+                        updated_at=dataset.updated_at
+                    ),
+                    "sample_data": sample_data,
+                    "schema": await self._infer_schema(dataset.file_path, dataset.format)
+                }
+        except Exception as e:
+            print(f"Database error in get_dataset: {e}")
+            raise e
 
     async def delete_dataset(self, dataset_id: str):
         """Delete a dataset and its file"""
