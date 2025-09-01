@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="layout">
       {/* Backend Status Banner */}
-      {/* <BackendStatus /> */}
+      <BackendStatus />
       
       {/* Header */}
       <header className="header">

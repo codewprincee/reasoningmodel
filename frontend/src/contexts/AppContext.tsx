@@ -45,6 +45,7 @@ interface AppState {
   ec2Status: EC2Status | null;
   isLoading: boolean;
   error: string | null;
+  isBackendAvailable: boolean;
 }
 
 type AppAction = 
@@ -56,7 +57,8 @@ type AppAction =
   | { type: 'SET_DATASETS'; payload: Dataset[] }
   | { type: 'ADD_DATASET'; payload: Dataset }
   | { type: 'REMOVE_DATASET'; payload: string }
-  | { type: 'SET_EC2_STATUS'; payload: EC2Status };
+  | { type: 'SET_EC2_STATUS'; payload: EC2Status }
+  | { type: 'SET_BACKEND_AVAILABILITY'; payload: boolean };
 
 const initialState: AppState = {
   trainingJobs: [],
@@ -64,6 +66,7 @@ const initialState: AppState = {
   ec2Status: null,
   isLoading: false,
   error: null,
+  isBackendAvailable: true,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -96,6 +99,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_EC2_STATUS':
       return { ...state, ec2Status: action.payload };
+    case 'SET_BACKEND_AVAILABILITY':
+      return { ...state, isBackendAvailable: action.payload };
     default:
       return state;
   }
@@ -138,8 +143,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       const datasets = await apiService.getDatasets();
       dispatch({ type: 'SET_DATASETS', payload: datasets });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: true });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: false });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
