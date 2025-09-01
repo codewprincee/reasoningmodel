@@ -186,6 +186,104 @@ class ModelTrainer:
             logger.error(f"Failed to enhance prompt: {e}")
             return await self._basic_enhancement(prompt, enhancement_type)
 
+    async def enhance_prompt_stream(
+        self, 
+        prompt: str, 
+        enhancement_type: EnhancementType,
+        model_version: Optional[str] = None
+    ):
+        """Stream enhanced prompt generation in real-time"""
+        try:
+            # Send analysis phase
+            yield {
+                "type": "status",
+                "message": f"Analyzing prompt for {enhancement_type.value} enhancement...",
+                "progress": 10
+            }
+            
+            await asyncio.sleep(0.5)  # Simulate processing
+            
+            # Create enhancement prompt based on type
+            enhancement_prefix = self._get_enhancement_prefix(enhancement_type)
+            enhanced_prompt_request = f"{enhancement_prefix}\n\nOriginal prompt: {prompt}\n\nEnhanced version:"
+            
+            yield {
+                "type": "status", 
+                "message": "Connecting to AI model...",
+                "progress": 20
+            }
+            
+            # Try to use Ollama for streaming generation
+            try:
+                async for chunk in self.ec2_connector.generate_response_stream(
+                    enhanced_prompt_request, 
+                    model_version
+                ):
+                    if chunk.get("success"):
+                        yield {
+                            "type": "content",
+                            "content": chunk.get("content", ""),
+                            "progress": min(90, 20 + (chunk.get("progress", 0) * 0.7))
+                        }
+                    else:
+                        # If streaming fails, fall back to basic enhancement
+                        break
+                else:
+                    # Streaming completed successfully
+                    yield {
+                        "type": "status",
+                        "message": "Enhancement completed!",
+                        "progress": 100
+                    }
+                    return
+            
+            except Exception as e:
+                logger.warning(f"Streaming failed, using fallback: {e}")
+            
+            # Fallback to basic enhancement with simulated streaming
+            yield {
+                "type": "status",
+                "message": "Using fallback enhancement method...",
+                "progress": 30
+            }
+            
+            enhanced_result = await self._basic_enhancement(prompt, enhancement_type)
+            
+            # Simulate streaming the fallback response
+            words = enhanced_result.split()
+            chunk_size = max(1, len(words) // 10)  # Send in 10 chunks
+            
+            for i in range(0, len(words), chunk_size):
+                chunk_words = words[i:i + chunk_size]
+                chunk_content = " ".join(chunk_words)
+                if i > 0:
+                    chunk_content = " " + chunk_content
+                
+                progress = 30 + ((i / len(words)) * 60)
+                
+                yield {
+                    "type": "content",
+                    "content": chunk_content,
+                    "progress": min(90, progress)
+                }
+                
+                await asyncio.sleep(0.1)  # Small delay for streaming effect
+            
+            # Final status
+            yield {
+                "type": "status",
+                "message": "Enhancement completed!",
+                "progress": 100
+            }
+                
+        except Exception as e:
+            logger.error(f"Failed to stream enhance prompt: {e}")
+            yield {
+                "type": "error",
+                "message": f"Enhancement failed: {str(e)}",
+                "progress": 0
+            }
+
     async def list_model_versions(self) -> List[str]:
         """List available trained model versions"""
         try:

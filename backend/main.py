@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
@@ -33,7 +34,7 @@ app = FastAPI(
 )
 
 # CORS middleware
-allowed_origins = os.getenv("ALLOWED_ORIGINS", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
 if isinstance(allowed_origins, str):
     try:
         import json
@@ -41,9 +42,21 @@ if isinstance(allowed_origins, str):
     except:
         allowed_origins = [allowed_origins]
 
+# Always include localhost for development
+development_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://apipdoll.hyperbrainlabs.com"
+]
+
+if isinstance(allowed_origins, list):
+    allowed_origins.extend(development_origins)
+else:
+    allowed_origins = development_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if isinstance(allowed_origins, list) else ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -154,6 +167,44 @@ async def enhance_prompt(request: PromptRequest):
     
     except Exception as e:
         print(f"Error in enhance_prompt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/prompt/enhance/stream")
+async def enhance_prompt_stream(request: PromptRequest):
+    """Stream enhanced prompt generation in real-time"""
+    try:
+        await initialize_services()
+        
+        async def generate_stream():
+            # Send initial status
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting enhancement...', 'progress': 0})}\n\n"
+            
+            # Stream the enhancement process
+            async for chunk in model_trainer.enhance_prompt_stream(
+                prompt=request.prompt,
+                enhancement_type=request.enhancement_type,
+                model_version=request.model_version
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            
+            # Send completion signal
+            yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+        
+        return StreamingResponse(
+            generate_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "http://localhost:3000",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Content-Type": "text/event-stream",
+            }
+        )
+    
+    except Exception as e:
+        print(f"Error in enhance_prompt_stream: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/data/upload")

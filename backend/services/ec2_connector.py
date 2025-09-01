@@ -269,6 +269,60 @@ class EC2Connector:
                 "error": str(e)
             }
 
+    async def generate_response_stream(self, prompt: str, model: str = None):
+        """Stream response generation using Ollama model"""
+        try:
+            model_name = model or self.ollama_model
+            
+            # In development mode, simulate streaming
+            if self.environment == "development":
+                mock_response = f"Enhanced version of your prompt:\n\n{prompt}\n\nThis is a more detailed and structured approach to your original question, designed to encourage deeper thinking and better reasoning."
+                words = mock_response.split()
+                
+                for i, word in enumerate(words):
+                    yield {
+                        "success": True,
+                        "content": word + " ",
+                        "progress": (i + 1) / len(words) * 100,
+                        "model": model_name,
+                        "done": i == len(words) - 1
+                    }
+                    await asyncio.sleep(0.05)  # Simulate typing speed
+                return
+            
+            # Prepare request data for streaming
+            request_data = {
+                "model": model_name,
+                "prompt": prompt,
+                "stream": True
+            }
+            
+            # Stream from Ollama API
+            result = await self.call_ollama_api("generate", request_data, stream=True)
+            
+            if result["success"]:
+                async for chunk in result["stream"]:
+                    yield {
+                        "success": True,
+                        "content": chunk.get("response", ""),
+                        "done": chunk.get("done", False),
+                        "model": model_name
+                    }
+            else:
+                yield {
+                    "success": False,
+                    "error": result.get("error", "Streaming failed"),
+                    "done": True
+                }
+                        
+        except Exception as e:
+            logger.error(f"Failed to stream response: {e}")
+            yield {
+                "success": False,
+                "error": str(e),
+                "done": True
+            }
+
     async def execute_command(self, command: str) -> Dict[str, Any]:
         """Execute a command on the EC2 instance via SSH"""
         # In development mode, return mock command execution
