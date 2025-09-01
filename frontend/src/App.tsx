@@ -7,6 +7,7 @@ import Training from './pages/Training';
 import DataManagement from './pages/DataManagement';
 import PromptEnhancer from './pages/PromptEnhancer';
 import ModelInfo from './pages/ModelInfo';
+import Chat from './pages/Chat';
 import './App.css';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
             <Route path="/data" element={<DataManagement />} />
             <Route path="/enhancer" element={<PromptEnhancer />} />
             <Route path="/model" element={<ModelInfo />} />
+            <Route path="/chat" element={<Chat />} />
           </Routes>
         </Layout>
       </Router>

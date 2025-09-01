@@ -22,7 +22,9 @@ from models.schemas import (
     TrainingStatus,
     DatasetInfo,
     ModelConfiguration,
-    TrainingConfig
+    TrainingConfig,
+    ChatRequest,
+    ChatResponse
 )
 
 load_dotenv()
@@ -250,6 +252,91 @@ async def list_model_versions():
         versions = await model_trainer.list_model_versions()
         return {"versions": versions}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_with_model(request: ChatRequest):
+    """Chat with the Ollama GPT OSS model"""
+    try:
+        await initialize_services()
+        
+        # Generate conversation ID if not provided
+        conversation_id = request.conversation_id or str(uuid.uuid4())
+        
+        # Prepare the prompt with system context if provided
+        full_prompt = request.message
+        if request.system_prompt:
+            full_prompt = f"System: {request.system_prompt}\n\nUser: {request.message}"
+        
+        start_time = datetime.now()
+        
+        # Generate response using EC2 connector
+        result = await ec2_connector.generate_response(
+            prompt=full_prompt,
+            model=request.model_version
+        )
+        
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        if result["success"]:
+            return ChatResponse(
+                response=result["response"],
+                model_version=result.get("model", "gpt-oss-20b"),
+                conversation_id=conversation_id,
+                timestamp=end_time,
+                processing_time=processing_time
+            )
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Chat generation failed"))
+            
+    except Exception as e:
+        print(f"Error in chat endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat/stream")
+async def chat_with_model_stream(request: ChatRequest):
+    """Stream chat response from the Ollama GPT OSS model"""
+    try:
+        await initialize_services()
+        
+        # Generate conversation ID if not provided
+        conversation_id = request.conversation_id or str(uuid.uuid4())
+        
+        # Prepare the prompt with system context if provided
+        full_prompt = request.message
+        if request.system_prompt:
+            full_prompt = f"System: {request.system_prompt}\n\nUser: {request.message}"
+        
+        async def generate_stream():
+            # Send initial status
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id, 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Stream the response
+            async for chunk in ec2_connector.generate_response_stream(
+                prompt=full_prompt,
+                model=request.model_version
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            
+            # Send completion signal
+            yield f"data: {json.dumps({'type': 'complete', 'conversation_id': conversation_id})}\n\n"
+        
+        return StreamingResponse(
+            generate_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Content-Type": "text/event-stream",
+            }
+        )
+    
+    except Exception as e:
+        print(f"Error in chat stream endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

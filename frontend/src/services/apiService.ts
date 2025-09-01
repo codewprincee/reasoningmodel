@@ -15,6 +15,26 @@ let isBackendAvailable = true;
 let lastConnectionCheck = 0;
 const CONNECTION_CHECK_INTERVAL = 30000; // 30 seconds
 
+// Initialize backend availability check
+const initializeBackend = async () => {
+  try {
+    console.log('Checking backend at:', API_BASE_URL);
+    const response = await api.get('/health', { timeout: 5000 });
+    console.log('Backend check successful:', response.data);
+    isBackendAvailable = true;
+  } catch (error: any) {
+    console.log('Initial backend check failed:', error.message, error.code);
+    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ENOTFOUND' || !error.response) {
+      isBackendAvailable = false;
+    } else {
+      isBackendAvailable = true;
+    }
+  }
+};
+
+// Run initial check
+initializeBackend();
+
 // Request interceptor
 api.interceptors.request.use((config) => {
   // Add auth token if available
@@ -95,16 +115,28 @@ export const apiService = {
   
   // Health check
   async healthCheck() {
-    return safeApiCall(async () => {
-      const response = await api.get('/health');
+    try {
+      const response = await api.get('/health', { timeout: 10000 });
+      isBackendAvailable = true;
       return response.data;
-    });
+    } catch (error: any) {
+      console.error('Health check failed:', error.message);
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ENOTFOUND' || !error.response) {
+        isBackendAvailable = false;
+        return null;
+      } else {
+        isBackendAvailable = true;
+        throw error;
+      }
+    }
   },
 
   // EC2 Status
   async getEC2Status() {
     return safeApiCall(async () => {
+      console.log('Fetching EC2 status from:', `${API_BASE_URL}/health`);
       const response = await api.get('/health');
+      console.log('EC2 status response:', response.data);
       return response.data.ec2_connection;
     }, {
       instance_id: 'offline',
@@ -264,5 +296,92 @@ export const apiService = {
       const response = await api.get('/model/versions');
       return response.data.versions;
     }, []);
+  },
+
+  // Chat functionality
+  async sendChatMessage(message: string, options?: {
+    modelVersion?: string;
+    conversationId?: string;
+    systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }) {
+    return safeApiCall(async () => {
+      const response = await api.post('/chat', {
+        message,
+        model_version: options?.modelVersion,
+        conversation_id: options?.conversationId,
+        system_prompt: options?.systemPrompt,
+        temperature: options?.temperature,
+        max_tokens: options?.maxTokens,
+      });
+      return response.data;
+    });
+  },
+
+  async sendChatMessageStream(message: string, onChunk?: (chunk: any) => void, options?: {
+    modelVersion?: string;
+    conversationId?: string;
+    systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          model_version: options?.modelVersion,
+          conversation_id: options?.conversationId,
+          system_prompt: options?.systemPrompt,
+          temperature: options?.temperature,
+          max_tokens: options?.maxTokens,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (onChunk) {
+                onChunk(data);
+              }
+              if (data.type === 'complete') {
+                return;
+              }
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Chat streaming error:', error);
+      throw error;
+    }
   },
 };

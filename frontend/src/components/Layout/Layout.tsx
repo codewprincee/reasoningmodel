@@ -27,6 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { text: 'Dashboard', icon: '📊', path: '/' },
+    { text: 'Chat', icon: '💬', path: '/chat' },
     { text: 'Training', icon: '🏋️', path: '/training' },
     { text: 'Data Management', icon: '💾', path: '/data' },
     { text: 'Prompt Enhancer', icon: '✨', path: '/enhancer' },

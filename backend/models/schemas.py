@@ -125,3 +125,19 @@ class EC2Status(BaseModel):
     uptime: Optional[str] = None
     model_loaded: bool = False
     last_checked: Optional[datetime] = None
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="User message to send to the model")
+    model_version: Optional[str] = Field(None, description="Specific model version to use")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID for context")
+    system_prompt: Optional[str] = Field(None, description="System prompt to set context")
+    temperature: Optional[float] = Field(0.7, description="Sampling temperature")
+    max_tokens: Optional[int] = Field(2048, description="Maximum tokens in response")
+
+class ChatResponse(BaseModel):
+    response: str = Field(..., description="Model's response")
+    model_version: str = Field(..., description="Model version used")
+    conversation_id: str = Field(..., description="Conversation ID")
+    timestamp: datetime = Field(..., description="Response timestamp")
+    processing_time: Optional[float] = Field(None, description="Processing time in seconds")
+    tokens_used: Optional[int] = Field(None, description="Number of tokens used")

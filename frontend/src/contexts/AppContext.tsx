@@ -30,7 +30,7 @@ interface Dataset {
 interface EC2Status {
   instance_id: string;
   instance_state: string;
-  instance_type: string;
+  instance_type: string; 
   public_ip?: string;
   cpu_usage?: number;
   memory_usage?: number;
@@ -155,9 +155,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadEC2Status = useCallback(async () => {
     try {
       const status = await apiService.getEC2Status();
-      dispatch({ type: 'SET_EC2_STATUS', payload: status });
+      if (status) {
+        dispatch({ type: 'SET_EC2_STATUS', payload: status });
+        dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: true });
+      } else {
+        dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: false });
+      }
     } catch (error) {
       console.error('Failed to load EC2 status:', error);
+      dispatch({ type: 'SET_BACKEND_AVAILABILITY', payload: apiService.isBackendAvailable() });
     }
   }, []);
 

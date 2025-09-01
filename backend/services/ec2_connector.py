@@ -15,7 +15,7 @@ class EC2Connector:
     def __init__(self):
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "gpt-oss-20b")
-        self.environment = os.getenv("ENVIRONMENT", "development")
+        self.environment = os.getenv("ENVIRONMENT", "production")
         
         self.client = httpx.AsyncClient(timeout=30.0)
         

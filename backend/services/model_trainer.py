@@ -20,7 +20,7 @@ class ModelTrainer:
         self.ec2_connector = ec2_connector
         self.training_jobs = {}  # In-memory store for training jobs
         self.models_dir = "/tmp/trained_models"  # Local cache for trained models
-        self.environment = os.getenv("ENVIRONMENT", "development")
+        self.environment = os.getenv("ENVIRONMENT", "production")
         
         # Create models directory if it doesn't exist
         Path(self.models_dir).mkdir(parents=True, exist_ok=True)
