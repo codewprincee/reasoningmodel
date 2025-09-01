@@ -362,11 +362,35 @@ class EC2Connector:
                 "stderr": ""
             }
         
-        # In production, this would use paramiko or similar to SSH to EC2
-        # For now, return a mock response
-        logger.warning("SSH command execution not implemented for production mode")
-        return {
-            "success": False,
-            "stdout": "",
-            "stderr": "SSH command execution not implemented"
-        }
+        # In production mode, execute commands locally since we're running on EC2
+        try:
+            import subprocess
+            import asyncio
+            
+            logger.info(f"Executing command: {command[:100]}...")
+            
+            # Use asyncio to run subprocess
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                shell=True
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            return {
+                "success": process.returncode == 0,
+                "stdout": stdout.decode('utf-8') if stdout else "",
+                "stderr": stderr.decode('utf-8') if stderr else "",
+                "return_code": process.returncode
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to execute command: {e}")
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": str(e),
+                "return_code": -1
+            }
