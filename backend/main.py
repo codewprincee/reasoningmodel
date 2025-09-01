@@ -19,7 +19,9 @@ from models.schemas import (
     PromptRequest, 
     PromptResponse,
     TrainingStatus,
-    DatasetInfo
+    DatasetInfo,
+    ModelConfiguration,
+    TrainingConfig
 )
 
 load_dotenv()
@@ -52,22 +54,8 @@ ec2_connector = EC2Connector()
 model_trainer = ModelTrainer(ec2_connector)
 data_manager = DataManager()
 
-@app.on_startup
-async def startup_event():
-    """Initialize database and check Ollama connection"""
-    await data_manager.initialize_db()
-    
-    # Test Ollama connection
-    connection_status = await ec2_connector.test_connection()
-    if connection_status:
-        print("✅ Successfully connected to Ollama")
-    else:
-        print("⚠️  Could not connect to Ollama - check if it's running")
-
-@app.on_shutdown
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    await ec2_connector.disconnect()
+# Note: Startup and shutdown events removed for compatibility
+# Database and connections will be initialized on first request
 
 @app.get("/")
 async def root():
@@ -101,15 +89,16 @@ async def start_training(request: TrainingRequest):
         job_id = await model_trainer.start_training(
             training_id=training_id,
             training_data=request.training_data,
-            model_config=request.model_config,
-            training_config=request.training_config
+            model_config=request.model_configuration or ModelConfiguration(),
+            training_config=request.training_configuration or TrainingConfig()
         )
         
         return TrainingResponse(
             training_id=training_id,
             job_id=job_id,
             status="started",
-            message="Training job started successfully"
+            message="Training job started successfully",
+            created_at=datetime.now()
         )
     
     except Exception as e:

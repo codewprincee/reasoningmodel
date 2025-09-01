@@ -10,10 +10,10 @@ const ModelInfo: React.FC = () => {
   useEffect(() => {
     actions.loadEC2Status();
     loadModelInfo();
-  }, [actions]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadModelInfo = async () => {
-    setIsLoading(true);
+      setIsLoading(true);
     // Mock model info for now
     setTimeout(() => {
       setModelInfo({
@@ -149,14 +149,14 @@ const ModelInfo: React.FC = () => {
         <div className="info-section">
           <h2>⚡ Performance Metrics</h2>
           <div className="metrics-grid">
-            {state.ec2Status.cpu_usage !== undefined && (
+                              {state.ec2Status.cpu_usage !== undefined && state.ec2Status.cpu_usage !== null && (
               <div className="metric-card">
                 <div className="metric-header">
                   <span className="icon">🖥️</span>
                   <h3>CPU Usage</h3>
                 </div>
                 <div className="metric-value">
-                  {state.ec2Status.cpu_usage.toFixed(1)}%
+                          {state.ec2Status.cpu_usage.toFixed(1)}%
                 </div>
                 <div className="progress-bar">
                   <div 
@@ -165,16 +165,16 @@ const ModelInfo: React.FC = () => {
                   ></div>
                 </div>
               </div>
-            )}
-
-            {state.ec2Status.memory_usage !== undefined && (
+                  )}
+                  
+                              {state.ec2Status.memory_usage !== undefined && state.ec2Status.memory_usage !== null && (
               <div className="metric-card">
                 <div className="metric-header">
                   <span className="icon">💾</span>
                   <h3>Memory Usage</h3>
                 </div>
                 <div className="metric-value">
-                  {state.ec2Status.memory_usage.toFixed(1)}%
+                          {state.ec2Status.memory_usage.toFixed(1)}%
                 </div>
                 <div className="progress-bar">
                   <div 
@@ -183,16 +183,16 @@ const ModelInfo: React.FC = () => {
                   ></div>
                 </div>
               </div>
-            )}
-
-            {state.ec2Status.gpu_usage !== undefined && (
+                  )}
+                  
+                              {state.ec2Status.gpu_usage !== undefined && state.ec2Status.gpu_usage !== null && (
               <div className="metric-card">
                 <div className="metric-header">
                   <span className="icon">🎮</span>
                   <h3>GPU Usage</h3>
                 </div>
                 <div className="metric-value">
-                  {state.ec2Status.gpu_usage.toFixed(1)}%
+                          {state.ec2Status.gpu_usage.toFixed(1)}%
                 </div>
                 <div className="progress-bar">
                   <div 

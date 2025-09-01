@@ -41,14 +41,21 @@ echo "📦 Step 2: Uploading application code..."
 # Create application directory on EC2
 ssh -i "$KEY_PATH" ubuntu@$EC2_IP "mkdir -p /home/ubuntu/ai-model"
 
-# Upload backend code
-rsync -avz -e "ssh -i $KEY_PATH" \
-    --exclude="frontend/" \
-    --exclude=".git/" \
-    --exclude="__pycache__/" \
-    --exclude="*.pyc" \
-    --exclude=".env" \
-    ./ ubuntu@$EC2_IP:/home/ubuntu/ai-model/
+# Option A: Clone from Git (recommended)
+ssh -i "$KEY_PATH" ubuntu@$EC2_IP "
+    cd /home/ubuntu && 
+    rm -rf ai-model &&
+    git clone https://github.com/codewprincee/reasoningmodel.git ai-model
+"
+
+# Option B: Upload local code (uncomment if needed)
+# rsync -avz -e "ssh -i $KEY_PATH" \
+#     --exclude="frontend/" \
+#     --exclude=".git/" \
+#     --exclude="__pycache__/" \
+#     --exclude="*.pyc" \
+#     --exclude=".env" \
+#     ./ ubuntu@$EC2_IP:/home/ubuntu/ai-model/
 
 echo ""
 echo "⚙️  Step 3: Configuring environment..."

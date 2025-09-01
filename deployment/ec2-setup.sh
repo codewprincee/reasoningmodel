@@ -24,11 +24,15 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Fix any problematic repositories first
+print_status "Fixing repository issues..."
+sudo rm -f /etc/apt/sources.list.d/certbot-*
+
 # Update system
 print_status "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
-# Install required packages
+# Install required packages (skip nginx if already installed)
 print_status "Installing system dependencies..."
 sudo apt install -y \
     curl \
@@ -37,10 +41,17 @@ sudo apt install -y \
     python3 \
     python3-pip \
     python3-venv \
-    nginx \
     htop \
     unzip \
     software-properties-common
+
+# Check if nginx is installed, install if needed
+if ! command -v nginx &> /dev/null; then
+    print_status "Installing nginx..."
+    sudo apt install -y nginx
+else
+    print_status "✅ Nginx is already installed"
+fi
 
 # Install Docker (for Ollama)
 print_status "Installing Docker..."
@@ -66,10 +77,10 @@ sleep 10
 print_status "Pulling GPT model for Ollama..."
 print_warning "This will download a large model file. Make sure you have enough disk space and bandwidth."
 
-# You might need to adjust the model name based on what's available
+# Auto-detect or use default model
 # Common models: codellama, llama2, mistral, etc.
-# For now, we'll use a placeholder - you'll need to update this
-MODEL_NAME="llama2"  # Change this to your specific GPT OSS 20B model
+# You can set MODEL_NAME environment variable to override
+MODEL_NAME=${MODEL_NAME:-"llama2"}  # Default to llama2, override with env var
 
 if ollama list | grep -q "$MODEL_NAME"; then
     print_status "Model $MODEL_NAME already exists"

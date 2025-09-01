@@ -23,6 +23,11 @@ class EC2Connector:
 
     async def connect(self) -> bool:
         """Test connection to Ollama service"""
+        # In development mode, skip actual connection
+        if self.environment == "development":
+            logger.info("Development mode: Skipping Ollama connection")
+            return True
+            
         try:
             response = await self.client.get(f"{self.ollama_host}/api/version")
             if response.status_code == 200:
@@ -150,6 +155,18 @@ class EC2Connector:
     async def get_model_info(self) -> ModelInfo:
         """Get information about the loaded model from Ollama"""
         try:
+            # In development mode, return mock model info
+            if self.environment == "development":
+                return ModelInfo(
+                    model_name=f"{self.ollama_model} (Mock)",
+                    model_path=f"mock://localhost/{self.ollama_model}",
+                    model_size="Mock (40.2GB)",
+                    parameters=20000000000,  # 20B parameters
+                    loaded=True,
+                    memory_usage="Mock (16.8GB)",
+                    last_updated=datetime.now()
+                )
+            
             # Get list of models from Ollama
             result = await self.call_ollama_api("tags")
             
@@ -198,6 +215,10 @@ class EC2Connector:
     async def _check_model_loaded(self) -> bool:
         """Check if the target model is loaded in Ollama"""
         try:
+            # In development mode, always return True
+            if self.environment == "development":
+                return True
+                
             result = await self.call_ollama_api("tags")
             if result["success"]:
                 models = result["data"].get("models", [])
@@ -211,6 +232,15 @@ class EC2Connector:
         """Generate response using Ollama"""
         try:
             model_name = model or self.ollama_model
+            
+            # In development mode, return mock response
+            if self.environment == "development":
+                mock_response = f"[MOCK RESPONSE] Enhanced version of: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+                return {
+                    "success": True,
+                    "response": mock_response,
+                    "model": model_name
+                }
             
             data = {
                 "model": model_name,
@@ -238,3 +268,23 @@ class EC2Connector:
                 "success": False,
                 "error": str(e)
             }
+
+    async def execute_command(self, command: str) -> Dict[str, Any]:
+        """Execute a command on the EC2 instance via SSH"""
+        # In development mode, return mock command execution
+        if self.environment == "development":
+            logger.info(f"Development mode: Mock executing command: {command[:50]}...")
+            return {
+                "success": True,
+                "stdout": "Mock command output",
+                "stderr": ""
+            }
+        
+        # In production, this would use paramiko or similar to SSH to EC2
+        # For now, return a mock response
+        logger.warning("SSH command execution not implemented for production mode")
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "SSH command execution not implemented"
+        }

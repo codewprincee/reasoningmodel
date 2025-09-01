@@ -10,7 +10,7 @@ const DataManagement: React.FC = () => {
 
   useEffect(() => {
     actions.loadDatasets();
-  }, [actions]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();

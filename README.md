@@ -53,25 +53,38 @@ This will:
 
 ### Option B: Manual Deployment
 
-#### 1. Set up EC2 Instance
+#### 1. One-Command Deployment (Recommended)
 
+```bash
+# SSH to your EC2 instance and run the clone-and-deploy script
+ssh -i your-key.pem ubuntu@your-ec2-ip
+curl -fsSL https://raw.githubusercontent.com/codewprincee/reasoningmodel/main/deployment/clone-and-deploy.sh | bash
+```
+
+#### 2. Step-by-Step Deployment
+
+**Step 1: Set up EC2 Instance**
 ```bash
 # SSH to your EC2 instance
 ssh -i your-key.pem ubuntu@your-ec2-ip
 
 # Run the setup script
-curl -fsSL https://raw.githubusercontent.com/your-repo/ai-model/main/deployment/ec2-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/codewprincee/reasoningmodel/main/deployment/ec2-setup.sh | bash
 ```
 
-#### 2. Deploy Application
-
+**Step 2: Deploy Application**
 ```bash
-# Upload your code to EC2
-scp -r . ubuntu@your-ec2-ip:/home/ubuntu/ai-model/
+# Clone and deploy
+curl -fsSL https://raw.githubusercontent.com/codewprincee/reasoningmodel/main/deployment/clone-and-deploy.sh | bash
+```
 
-# SSH to EC2 and deploy
-ssh -i your-key.pem ubuntu@your-ec2-ip
+**Alternative: Manual deployment**
+```bash
+# Clone repository
+git clone https://github.com/codewprincee/reasoningmodel.git /home/ubuntu/ai-model
 cd /home/ubuntu/ai-model
+
+# Run deployment
 ./deployment/deploy.sh
 ```
 
