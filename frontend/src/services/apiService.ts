@@ -206,6 +206,13 @@ export const apiService = {
     });
   },
 
+  async getDatasetContent(datasetId: string) {
+    return safeApiCall(async () => {
+      const response = await api.get(`/data/dataset/${datasetId}/content`);
+      return response.data;
+    });
+  },
+
   async deleteDataset(datasetId: string) {
     return safeApiCall(async () => {
       const response = await api.delete(`/data/dataset/${datasetId}`);

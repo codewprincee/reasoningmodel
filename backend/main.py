@@ -264,6 +264,19 @@ async def get_dataset(dataset_id: str):
         print(f"Error in get_dataset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/data/dataset/{dataset_id}/content")
+async def get_dataset_content(dataset_id: str):
+    """Get the full content of a specific dataset"""
+    try:
+        await initialize_services()
+        content = await data_manager.get_dataset_content(dataset_id)
+        if not content:
+            raise HTTPException(status_code=404, detail="Dataset not found or empty")
+        return {"dataset_id": dataset_id, "content": content}
+    except Exception as e:
+        print(f"Error in get_dataset_content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/model/info")
 async def get_model_info():
     """Get information about the current model"""

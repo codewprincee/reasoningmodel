@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
+import { apiService } from '../services/apiService';
 import './Training.css';
 
 interface TrainingFormData {
@@ -49,17 +50,71 @@ const Training: React.FC = () => {
         return;
       }
 
+      // Load the dataset content
+      const datasetContent = await apiService.getDatasetContent(formData.datasetId);
+      if (!datasetContent || !datasetContent.content || datasetContent.content.length === 0) {
+        alert('Dataset is empty or could not be loaded');
+        return;
+      }
+
+      // Convert dataset content to training data format
+      const trainingDataItems = datasetContent.content.map((item: any, index: number) => {
+        // Try to map common field names to the expected format
+        let inputPrompt = '';
+        let enhancedPrompt = '';
+
+        // Handle different possible field names
+        if (item.input_prompt && item.enhanced_prompt) {
+          inputPrompt = item.input_prompt;
+          enhancedPrompt = item.enhanced_prompt;
+        } else if (item.input && item.output) {
+          inputPrompt = item.input;
+          enhancedPrompt = item.output;
+        } else if (item.prompt && item.enhanced) {
+          inputPrompt = item.prompt;
+          enhancedPrompt = item.enhanced;
+        } else if (item.question && item.answer) {
+          inputPrompt = item.question;
+          enhancedPrompt = item.answer;
+        } else if (item.text) {
+          // For single text field, create a simple enhancement task
+          inputPrompt = item.text;
+          enhancedPrompt = `Enhanced version: ${item.text}`;
+        } else {
+          // Fallback: use the first two string fields found
+          const stringFields = Object.entries(item).filter(([_, value]) => typeof value === 'string');
+          if (stringFields.length >= 2) {
+            inputPrompt = stringFields[0][1] as string;
+            enhancedPrompt = stringFields[1][1] as string;
+          } else if (stringFields.length === 1) {
+            inputPrompt = stringFields[0][1] as string;
+            enhancedPrompt = `Enhanced: ${inputPrompt}`;
+          } else {
+            inputPrompt = `Item ${index + 1}`;
+            enhancedPrompt = `Enhanced item ${index + 1}`;
+          }
+        }
+
+        return {
+          input_prompt: inputPrompt,
+          enhanced_prompt: enhancedPrompt,
+          reasoning_steps: item.reasoning_steps || null,
+          category: item.category || null,
+          difficulty: item.difficulty || null,
+        };
+      });
+
       const trainingData = {
         experiment_name: formData.experimentName,
         description: formData.description,
-        training_data: [],
-        model_config: {
+        training_data: trainingDataItems,
+        model_configuration: {
           model_name: 'gpt-oss-20b',
           max_length: 2048,
           temperature: 0.7,
           learning_rate: formData.learningRate,
         },
-        training_config: {
+        training_configuration: {
           epochs: formData.epochs,
           batch_size: formData.batchSize,
           use_lora: formData.useLoRA,

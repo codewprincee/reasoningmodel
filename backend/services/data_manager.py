@@ -186,6 +186,30 @@ class DataManager:
             print(f"Database error in get_dataset: {e}")
             raise e
 
+    async def get_dataset_content(self, dataset_id: str) -> List[Dict[str, Any]]:
+        """Get the full content of a dataset"""
+        if not self.async_session:
+            await self.initialize_db()
+            
+        try:
+            async with self.async_session() as session:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(Dataset).where(Dataset.dataset_id == dataset_id)
+                )
+                dataset = result.scalar_one_or_none()
+                
+                if not dataset:
+                    return []
+                
+                # Load full dataset content
+                content = await self._load_full_data(dataset.file_path, dataset.format)
+                return content
+                
+        except Exception as e:
+            print(f"Database error in get_dataset_content: {e}")
+            return []
+
     async def delete_dataset(self, dataset_id: str):
         """Delete a dataset and its file"""
         async with self.async_session() as session:
