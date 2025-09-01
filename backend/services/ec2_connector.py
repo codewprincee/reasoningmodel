@@ -309,7 +309,7 @@ class EC2Connector:
                 
                 for i, word in enumerate(words):
                     yield {
-                        "success": True,
+                        "type": "token",
                         "content": word + " ",
                         "progress": (i + 1) / len(words) * 100,
                         "model": model_name,
@@ -331,14 +331,14 @@ class EC2Connector:
             if result["success"]:
                 async for chunk in result["stream"]:
                     yield {
-                        "success": True,
+                        "type": "token",
                         "content": chunk.get("response", ""),
                         "done": chunk.get("done", False),
                         "model": model_name
                     }
             else:
                 yield {
-                    "success": False,
+                    "type": "error",
                     "error": result.get("error", "Streaming failed"),
                     "done": True
                 }
@@ -346,7 +346,7 @@ class EC2Connector:
         except Exception as e:
             logger.error(f"Failed to stream response: {e}")
             yield {
-                "success": False,
+                "type": "error",
                 "error": str(e),
                 "done": True
             }
