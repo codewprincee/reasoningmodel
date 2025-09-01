@@ -7,7 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout for live API
+  timeout: 60000, // 60 second timeout for live API
 });
 
 // Track backend connectivity
@@ -177,6 +177,64 @@ export const apiService = {
       });
       return response.data;
     });
+  },
+
+  // Streaming prompt enhancement
+  async enhancePromptStream(prompt: string, enhancementType: string, modelVersion?: string, onChunk?: (chunk: any) => void) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/prompt/enhance/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          enhancement_type: enhancementType,
+          model_version: modelVersion,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (onChunk) {
+                onChunk(data);
+              }
+              if (data.type === 'complete') {
+                return;
+              }
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Streaming error:', error);
+      throw error;
+    }
   },
 
   // Model information
