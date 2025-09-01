@@ -62,7 +62,7 @@ const Dashboard: React.FC = () => {
     }, 30000); // Poll every 30 seconds
 
     return () => clearInterval(interval);
-  }, [actions]);
+  }, [actions.loadEC2Status, actions.loadTrainingJobs, actions.loadDatasets]);
 
   const handleRefreshStatus = () => {
     actions.loadEC2Status();
